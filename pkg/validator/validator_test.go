@@ -4,10 +4,10 @@ import (
 	"context"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	"github.com/imtanmoy/openax/pkg/loader"
 	"github.com/imtanmoy/openax/pkg/validator"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestNew(t *testing.T) {
@@ -24,7 +24,7 @@ func TestNewWithContext(t *testing.T) {
 func TestValidate(t *testing.T) {
 	l := loader.New()
 	v := validator.New()
-	
+
 	testCases := []struct {
 		name        string
 		specFile    string
@@ -51,9 +51,9 @@ func TestValidate(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			doc, err := l.LoadFromFile(tc.specFile)
 			require.NoError(t, err, "Failed to load spec for %s", tc.name)
-			
+
 			err = v.Validate(doc)
-			
+
 			if tc.expectError {
 				assert.Error(t, err, "Expected validation error for %s", tc.name)
 			} else {
@@ -66,14 +66,14 @@ func TestValidate(t *testing.T) {
 func TestValidateWithOptions(t *testing.T) {
 	l := loader.New()
 	v := validator.New()
-	
+
 	doc, err := l.LoadFromFile("../../testdata/specs/simple.yaml")
 	require.NoError(t, err, "Failed to load spec")
-	
+
 	// Test with no options (should pass)
 	err = v.ValidateWithOptions(doc)
 	assert.NoError(t, err, "Validation with no options should not fail")
-	
+
 	// The actual validation options would depend on what's available
 	// in the kin-openapi library. This is a basic test structure.
 }

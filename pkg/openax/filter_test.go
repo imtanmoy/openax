@@ -69,18 +69,18 @@ func TestValidateRef(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			result, err := validateRef(tc.ref)
-			
+
 			if tc.expectError {
 				if err == nil {
 					t.Errorf("Expected error but got none")
 				}
 				return
 			}
-			
+
 			if err != nil {
 				t.Errorf("Unexpected error: %v", err)
 			}
-			
+
 			if result != tc.expected {
 				t.Errorf("Expected %s, got %s", tc.expected, result)
 			}
@@ -90,10 +90,10 @@ func TestValidateRef(t *testing.T) {
 
 func TestPathMatchesFilter(t *testing.T) {
 	testCases := []struct {
-		name        string
-		path        string
-		filters     []string
-		expected    bool
+		name     string
+		path     string
+		filters  []string
+		expected bool
 	}{
 		{
 			name:     "exact match",
@@ -190,7 +190,7 @@ func TestFindAllMimeTypes(t *testing.T) {
 
 	// Should include defaults plus custom types
 	expectedTypes := map[string]bool{
-		"application/json":                   true,
+		"application/json":                  true,
 		"application/x-www-form-urlencoded": true,
 		"multipart/form-data":               true,
 		"application/xml":                   true,

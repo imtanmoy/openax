@@ -64,7 +64,7 @@ the referenced components, and writes the result to JSON or YAML.`,
 
 func runFilter(ctx context.Context, cmd *cli.Command) error {
 	inputFile := cmd.String("input")
-	
+
 	client := openax.NewWithOptions(openax.LoadOptions{
 		AllowExternalRefs: true,
 		Context:           ctx,
@@ -89,7 +89,6 @@ func runFilter(ctx context.Context, cmd *cli.Command) error {
 
 	return writeOutput(cmd, filteredDoc)
 }
-
 
 func writeOutput(cmd *cli.Command, doc *openapi3.T) error {
 	var data []byte

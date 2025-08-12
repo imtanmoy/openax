@@ -6,9 +6,9 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/imtanmoy/openax/cmd"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/imtanmoy/openax/cmd"
 )
 
 func TestNewApp(t *testing.T) {
@@ -18,7 +18,7 @@ func TestNewApp(t *testing.T) {
 	assert.Equal(t, "openax", app.Name, "App name should be 'openax'")
 	assert.NotEmpty(t, app.Usage, "App usage should not be empty")
 	assert.NotEmpty(t, app.Flags, "App should have flags defined")
-	
+
 	// Version is set dynamically in main.go, so we don't test it here
 }
 

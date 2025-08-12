@@ -50,8 +50,8 @@ func TestIntegrationFilterPetstore(t *testing.T) {
 			options: openax.FilterOptions{
 				Operations: []string{"get"},
 			},
-			minPaths:   8,  // All paths with GET operations
-			minSchemas: 5,  // All referenced schemas
+			minPaths:   8, // All paths with GET operations
+			minSchemas: 5, // All referenced schemas
 		},
 		{
 			name: "filter store path prefix",

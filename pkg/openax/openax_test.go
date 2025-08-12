@@ -4,9 +4,9 @@ import (
 	"context"
 	"testing"
 
+	"github.com/imtanmoy/openax/pkg/openax"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/imtanmoy/openax/pkg/openax"
 )
 
 func TestNew(t *testing.T) {
@@ -25,7 +25,7 @@ func TestNewWithOptions(t *testing.T) {
 
 func TestLoadFromFile(t *testing.T) {
 	client := openax.New()
-	
+
 	testCases := []struct {
 		name        string
 		filePath    string
@@ -46,13 +46,13 @@ func TestLoadFromFile(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			doc, err := client.LoadFromFile(tc.filePath)
-			
+
 			if tc.expectError {
 				assert.Error(t, err, "Expected error for %s", tc.name)
 				assert.Nil(t, doc, "Document should be nil on error")
 				return
 			}
-			
+
 			require.NoError(t, err, "Unexpected error for %s", tc.name)
 			require.NotNil(t, doc, "Document should not be nil")
 		})
@@ -61,17 +61,17 @@ func TestLoadFromFile(t *testing.T) {
 
 func TestValidate(t *testing.T) {
 	client := openax.New()
-	
+
 	doc, err := client.LoadFromFile("../../testdata/specs/simple.yaml")
 	require.NoError(t, err, "Failed to load spec")
-	
+
 	err = client.Validate(doc)
 	assert.NoError(t, err, "Validation should succeed for valid spec")
 }
 
 func TestValidateOnly(t *testing.T) {
 	client := openax.New()
-	
+
 	testCases := []struct {
 		name        string
 		source      string
@@ -97,7 +97,7 @@ func TestValidateOnly(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			err := client.ValidateOnly(tc.source)
-			
+
 			if tc.expectError {
 				assert.Error(t, err, "Expected error for %s", tc.name)
 			} else {
@@ -109,10 +109,10 @@ func TestValidateOnly(t *testing.T) {
 
 func TestFilter(t *testing.T) {
 	client := openax.New()
-	
+
 	doc, err := client.LoadFromFile("../../testdata/specs/simple.yaml")
 	require.NoError(t, err, "Failed to load spec")
-	
+
 	testCases := []struct {
 		name           string
 		options        openax.FilterOptions
@@ -189,13 +189,13 @@ func TestFilter(t *testing.T) {
 			filtered, err := client.Filter(doc, tc.options)
 			require.NoError(t, err, "Filter should not fail")
 			require.NotNil(t, filtered, "Filtered document should not be nil")
-			
+
 			actualPaths := filtered.Paths.Len()
 			assert.Equal(t, tc.expectedPaths, actualPaths, "Path count mismatch")
-			
+
 			actualSchemas := len(filtered.Components.Schemas)
 			assert.Equal(t, tc.expectedSchema, actualSchemas, "Schema count mismatch")
-			
+
 			// Verify the filtered document still has required fields
 			assert.NotEmpty(t, filtered.OpenAPI, "Filtered document should have OpenAPI version")
 			assert.NotNil(t, filtered.Info, "Filtered document should have Info")
@@ -205,7 +205,7 @@ func TestFilter(t *testing.T) {
 
 func TestLoadAndFilter(t *testing.T) {
 	client := openax.New()
-	
+
 	testCases := []struct {
 		name        string
 		source      string
@@ -241,13 +241,13 @@ func TestLoadAndFilter(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			filtered, err := client.LoadAndFilter(tc.source, tc.options)
-			
+
 			if tc.expectError {
 				assert.Error(t, err, "Expected error for %s", tc.name)
 				assert.Nil(t, filtered, "Document should be nil on error")
 				return
 			}
-			
+
 			require.NoError(t, err, "Unexpected error for %s", tc.name)
 			require.NotNil(t, filtered, "Filtered document should not be nil")
 		})
@@ -261,7 +261,7 @@ func TestFilterOptions(t *testing.T) {
 		Operations: []string{"get", "post"},
 		Tags:       []string{"public", "v1"},
 	}
-	
+
 	assert.Len(t, opts.Paths, 2, "Expected 2 paths")
 	assert.Len(t, opts.Operations, 2, "Expected 2 operations")
 	assert.Len(t, opts.Tags, 2, "Expected 2 tags")

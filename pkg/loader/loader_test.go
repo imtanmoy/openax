@@ -5,9 +5,9 @@ import (
 	"os"
 	"testing"
 
+	"github.com/imtanmoy/openax/pkg/loader"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/imtanmoy/openax/pkg/loader"
 )
 
 func TestNew(t *testing.T) {
@@ -26,7 +26,7 @@ func TestNewWithOptions(t *testing.T) {
 
 func TestLoadFromFile(t *testing.T) {
 	l := loader.New()
-	
+
 	testCases := []struct {
 		name        string
 		filePath    string
@@ -52,16 +52,16 @@ func TestLoadFromFile(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			doc, err := l.LoadFromFile(tc.filePath)
-			
+
 			if tc.expectError {
 				assert.Error(t, err, "Expected error for %s", tc.name)
 				assert.Nil(t, doc, "Document should be nil on error")
 				return
 			}
-			
+
 			require.NoError(t, err, "Unexpected error for %s", tc.name)
 			require.NotNil(t, doc, "Document should not be nil")
-			
+
 			assert.NotNil(t, doc.Info, "Document info should not be nil")
 			assert.NotEmpty(t, doc.Info.Title, "Document title should not be empty")
 		})
@@ -70,7 +70,7 @@ func TestLoadFromFile(t *testing.T) {
 
 func TestLoadFromData(t *testing.T) {
 	l := loader.New()
-	
+
 	validYAML := `
 openapi: 3.0.3
 info:
@@ -83,7 +83,6 @@ paths:
         '200':
           description: OK
 `
-	
 
 	testCases := []struct {
 		name        string
@@ -110,18 +109,18 @@ paths:
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			doc, err := l.LoadFromData(tc.data)
-			
+
 			if tc.expectError {
 				if err == nil {
 					t.Errorf("Expected error but got none")
 				}
 				return
 			}
-			
+
 			if err != nil {
 				t.Fatalf("Unexpected error: %v", err)
 			}
-			
+
 			if doc == nil {
 				t.Fatal("Document is nil")
 			}
@@ -131,7 +130,7 @@ paths:
 
 func TestLoadFromSource(t *testing.T) {
 	l := loader.New()
-	
+
 	// Create a temporary file for testing
 	tempFile, err := os.CreateTemp("", "test_spec_*.yaml")
 	if err != nil {
@@ -140,7 +139,7 @@ func TestLoadFromSource(t *testing.T) {
 	defer func() {
 		_ = os.Remove(tempFile.Name()) // Best effort cleanup
 	}()
-	
+
 	validSpec := `
 openapi: 3.0.3
 info:
@@ -153,7 +152,7 @@ paths:
         '200':
           description: OK
 `
-	
+
 	if _, err := tempFile.WriteString(validSpec); err != nil {
 		t.Fatalf("Failed to write to temp file: %v", err)
 	}
@@ -186,18 +185,18 @@ paths:
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			doc, err := l.LoadFromSource(tc.source)
-			
+
 			if tc.expectError {
 				if err == nil {
 					t.Errorf("Expected error but got none")
 				}
 				return
 			}
-			
+
 			if err != nil {
 				t.Fatalf("Unexpected error: %v", err)
 			}
-			
+
 			if doc == nil {
 				t.Fatal("Document is nil")
 			}
@@ -207,7 +206,7 @@ paths:
 
 func TestLoadFromURL(t *testing.T) {
 	l := loader.New()
-	
+
 	testCases := []struct {
 		name        string
 		url         string
@@ -228,14 +227,14 @@ func TestLoadFromURL(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			_, err := l.LoadFromURL(tc.url)
-			
+
 			if tc.expectError {
 				if err == nil {
 					t.Errorf("Expected error but got none")
 				}
 				return
 			}
-			
+
 			if err != nil {
 				t.Fatalf("Unexpected error: %v", err)
 			}
