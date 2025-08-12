@@ -34,14 +34,17 @@ ehthumbs.db
 Thumbs.db
 
 # Built binary
-openax
+/openax
 openax.exe
 
-# Test files
+# Test files and temporary outputs
 *.json
 *.yaml
 *.yml
-!example.yaml
+
+# Keep test data and examples
+!testdata/**/*
+!examples/**/*
 
 # Log files
 *.log

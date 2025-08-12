@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"net/url"
 	"os"
 	"strings"
 
@@ -12,7 +11,7 @@ import (
 	"github.com/urfave/cli/v3"
 	"gopkg.in/yaml.v3"
 
-	"github.com/imtanmoy/openax/internal/filter"
+	"github.com/imtanmoy/openax/pkg/openax"
 )
 
 func NewApp() *cli.Command {
@@ -67,21 +66,20 @@ the referenced components, and writes the result to JSON or YAML.`,
 func runFilter(ctx context.Context, cmd *cli.Command) error {
 	inputFile := cmd.String("input")
 	
-	doc, err := loadSpec(ctx, inputFile)
-	if err != nil {
-		return fmt.Errorf("failed to load spec: %w", err)
-	}
-
-	if err := doc.Validate(ctx); err != nil {
-		return fmt.Errorf("spec validation failed: %w", err)
-	}
+	client := openax.NewWithOptions(openax.LoadOptions{
+		AllowExternalRefs: true,
+		Context:           ctx,
+	})
 
 	if cmd.Bool("validate-only") {
+		if err := client.ValidateOnly(inputFile); err != nil {
+			return fmt.Errorf("validation failed: %w", err)
+		}
 		fmt.Println("OpenAPI spec is valid")
 		return nil
 	}
 
-	filteredDoc, err := filter.Apply(doc, filter.Options{
+	filteredDoc, err := client.LoadAndFilter(inputFile, openax.FilterOptions{
 		Paths:      cmd.StringSlice("paths"),
 		Operations: cmd.StringSlice("operations"),
 		Tags:       cmd.StringSlice("tags"),
@@ -93,22 +91,6 @@ func runFilter(ctx context.Context, cmd *cli.Command) error {
 	return writeOutput(cmd, filteredDoc)
 }
 
-func loadSpec(ctx context.Context, input string) (*openapi3.T, error) {
-	loader := &openapi3.Loader{
-		Context:               ctx,
-		IsExternalRefsAllowed: true,
-	}
-
-	if strings.HasPrefix(input, "http://") || strings.HasPrefix(input, "https://") {
-		u, err := url.Parse(input)
-		if err != nil {
-			return nil, fmt.Errorf("invalid URL: %w", err)
-		}
-		return loader.LoadFromURI(u)
-	}
-	
-	return loader.LoadFromFile(input)
-}
 
 func writeOutput(cmd *cli.Command, doc *openapi3.T) error {
 	var data []byte

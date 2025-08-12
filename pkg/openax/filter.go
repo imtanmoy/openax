@@ -1,4 +1,4 @@
-package filter
+package openax
 
 import (
 	"fmt"
@@ -8,13 +8,8 @@ import (
 	"github.com/getkin/kin-openapi/openapi3"
 )
 
-type Options struct {
-	Paths      []string
-	Operations []string
-	Tags       []string
-}
-
-func Apply(doc *openapi3.T, opts Options) (*openapi3.T, error) {
+// applyFilter applies filtering to an OpenAPI specification based on the provided options.
+func applyFilter(doc *openapi3.T, opts FilterOptions) (*openapi3.T, error) {
 	filtered := &openapi3.T{
 		OpenAPI:      doc.OpenAPI,
 		Info:         doc.Info,
@@ -78,7 +73,7 @@ func Apply(doc *openapi3.T, opts Options) (*openapi3.T, error) {
 
 			// Check operation filter (if specified)
 			if len(opts.Operations) > 0 {
-				operationMatches = slices.Contains(opts.Operations, operation.OperationID) || 
+				operationMatches = slices.Contains(opts.Operations, operation.OperationID) ||
 					slices.ContainsFunc(opts.Operations, func(op string) bool {
 						return strings.EqualFold(op, method)
 					})
