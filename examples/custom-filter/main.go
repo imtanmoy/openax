@@ -25,7 +25,7 @@ func customFilterExample() {
 	v := validator.New()
 
 	// Load the spec
-	doc, err := l.LoadFromFile("testdata/specs/petstore.yaml")
+	doc, err := l.LoadFromFile("../../testdata/specs/petstore.yaml")
 	if err != nil {
 		log.Fatalf("Failed to load spec: %v", err)
 	}

@@ -37,11 +37,6 @@ Thumbs.db
 /openax
 openax.exe
 
-# Test files and temporary outputs
-*.json
-*.yaml
-*.yml
-
 # Keep test data and examples
 !testdata/**/*
 !examples/**/*

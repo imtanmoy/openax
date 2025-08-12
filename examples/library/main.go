@@ -28,7 +28,7 @@ func basicExample() {
 	client := openax.New()
 
 	// Filter by tags
-	result, err := client.LoadAndFilter("testdata/specs/petstore.yaml", openax.FilterOptions{
+	result, err := client.LoadAndFilter("../../testdata/specs/petstore.yaml", openax.FilterOptions{
 		Tags: []string{"pet"},
 	})
 	if err != nil {
@@ -52,7 +52,7 @@ func advancedExample() {
 	})
 
 	// Load the document first
-	doc, err := client.LoadFromFile("testdata/specs/petstore.yaml")
+	doc, err := client.LoadFromFile("../../testdata/specs/petstore.yaml")
 	if err != nil {
 		log.Printf("Error loading: %v", err)
 		return
@@ -91,7 +91,7 @@ func validationExample() {
 	client := openax.New()
 
 	// Just validate without filtering
-	if err := client.ValidateOnly("testdata/specs/petstore.yaml"); err != nil {
+	if err := client.ValidateOnly("../../testdata/specs/petstore.yaml"); err != nil {
 		log.Printf("Validation failed: %v", err)
 		return
 	}
