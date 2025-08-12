@@ -16,9 +16,8 @@ import (
 
 func NewApp() *cli.Command {
 	return &cli.Command{
-		Name:    "openax",
-		Usage:   "Filter and validate OpenAPI specifications",
-		Version: "1.0.0",
+		Name:  "openax",
+		Usage: "Filter and validate OpenAPI specifications",
 		Description: `OpenAx is a CLI tool that loads an OpenAPI spec, validates it, 
 filters it down to specified paths/operations/tags, pulls in only 
 the referenced components, and writes the result to JSON or YAML.`,

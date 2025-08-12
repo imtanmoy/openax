@@ -3,7 +3,6 @@ package loader_test
 import (
 	"context"
 	"os"
-	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -138,7 +137,9 @@ func TestLoadFromSource(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
-	defer os.Remove(tempFile.Name())
+	defer func() {
+		_ = os.Remove(tempFile.Name()) // Best effort cleanup
+	}()
 	
 	validSpec := `
 openapi: 3.0.3
@@ -156,7 +157,9 @@ paths:
 	if _, err := tempFile.WriteString(validSpec); err != nil {
 		t.Fatalf("Failed to write to temp file: %v", err)
 	}
-	tempFile.Close()
+	if err := tempFile.Close(); err != nil {
+		t.Fatalf("Failed to close temp file: %v", err)
+	}
 
 	testCases := []struct {
 		name        string
@@ -241,7 +244,3 @@ func TestLoadFromURL(t *testing.T) {
 }
 
 // Helper function to get absolute path to test data
-func getTestDataPath(filename string) string {
-	wd, _ := os.Getwd()
-	return filepath.Join(wd, "..", "..", "testdata", "specs", filename)
-}

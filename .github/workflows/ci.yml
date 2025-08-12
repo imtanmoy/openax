@@ -5,28 +5,35 @@ on:
     branches: [main, develop]
   pull_request:
     branches: [main]
+  workflow_dispatch: # Allow manual trigger
+
+env:
+  GO_VERSION: "1.23"
 
 jobs:
   test:
+    name: Test
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        go-version: ["1.20", "1.21", "1.22"]
+        go-version: ["1.21", "1.22", "1.23"]
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Check out code
+        uses: actions/checkout@v5
 
       - name: Set up Go
-        uses: actions/setup-go@v4
+        uses: actions/setup-go@v5
         with:
           go-version: ${{ matrix.go-version }}
 
       - name: Cache Go modules
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: ~/go/pkg/mod
-          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          key: ${{ runner.os }}-go-${{ matrix.go-version }}-${{ hashFiles('**/go.sum') }}
           restore-keys: |
+            ${{ runner.os }}-go-${{ matrix.go-version }}-
             ${{ runner.os }}-go-
 
       - name: Download dependencies
@@ -46,66 +53,92 @@ jobs:
             exit 1
           fi
 
-      - name: Run tests
+      - name: Run tests with race detector
         run: go test -race -coverprofile=coverage.txt -covermode=atomic ./...
 
-      - name: Run benchmarks
-        run: go test -bench=. -benchmem ./...
+      - name: Generate coverage report
+        if: matrix.go-version == '1.23'
+        run: go tool cover -html=coverage.txt -o coverage.html
 
-  build:
+      - name: Upload coverage to Codecov
+        if: matrix.go-version == '1.23'
+        uses: codecov/codecov-action@v4
+        with:
+          file: ./coverage.txt
+          flags: unittests
+          name: codecov-umbrella
+
+  lint:
+    name: Lint
     runs-on: ubuntu-latest
-    needs: test
-
     steps:
-      - uses: actions/checkout@v4
+      - name: Check out code
+        uses: actions/checkout@v5
 
       - name: Set up Go
-        uses: actions/setup-go@v4
+        uses: actions/setup-go@v5
         with:
-          go-version: "1.21"
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: latest
+          args: --timeout=5m
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    needs: [test, lint]
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v5
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
 
       - name: Build binary
         run: go build -v ./...
 
-      - name: Test CLI
+      - name: Test CLI functionality
         run: |
           go build -o openax .
           ./openax --help
           ./openax --validate-only -i testdata/specs/simple.yaml
 
-  lint:
+  examples:
+    name: Examples
     runs-on: ubuntu-latest
-
+    needs: test
     steps:
-      - uses: actions/checkout@v4
+      - name: Check out code
+        uses: actions/checkout@v5
 
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: "1.21"
+          go-version: ${{ env.GO_VERSION }}
 
-      - name: golangci-lint
-        uses: golangci/golangci-lint-action@v8
-        with:
-          version: latest
-          args: --timeout=5m
+      - name: Test library example
+        run: cd examples/library && go run main.go
+
+      - name: Test custom filter example
+        run: cd examples/custom-filter && go run main.go
 
   integration:
+    name: Integration Tests
     runs-on: ubuntu-latest
     needs: [test, build]
-
     steps:
-      - uses: actions/checkout@v4
+      - name: Check out code
+        uses: actions/checkout@v5
 
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: "1.21"
+          go-version: ${{ env.GO_VERSION }}
 
       - name: Run integration tests
         run: go test -v -run Integration ./...
-
-      - name: Test examples
-        run: |
-          cd examples/library && go run main.go
-          cd ../custom-filter && go run main.go

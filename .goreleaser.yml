@@ -1,0 +1,171 @@
+# GoReleaser configuration for OpenAx
+# Inspired by lifecycle project best practices
+
+version: 2
+
+project_name: openax
+
+before:
+  hooks:
+    - go mod tidy
+    - go generate ./...
+
+builds:
+  - main: .
+    id: openax
+    binary: openax
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - windows
+      - darwin
+    goarch:
+      - "386"
+      - "amd64"
+      - "arm"
+      - "arm64"
+    goarm:
+      - "6"
+      - "7"
+    ignore:
+      - goos: windows
+        goarch: arm
+      - goos: windows
+        goarch: arm64
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w -X main.version={{.Version}} -X main.commit={{.Commit}} -X main.date={{.Date}}
+
+archives:
+  - id: openax
+    name_template: >-
+      {{ .ProjectName }}_
+      {{- title .Os }}_
+      {{- if eq .Arch "amd64" }}x86_64
+      {{- else if eq .Arch "386" }}i386
+      {{- else }}{{ .Arch }}{{ end }}
+      {{- if .Arm }}v{{ .Arm }}{{ end }}
+    format_overrides:
+      - goos: windows
+        format: zip
+    files:
+      - LICENSE
+      - README.md
+
+checksum:
+  name_template: "checksums.txt"
+
+snapshot:
+  name_template: "{{ incpatch .Version }}-next"
+
+changelog:
+  sort: asc
+  use: github
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^ci:"
+      - "^chore:"
+      - Merge pull request
+      - Merge branch
+  groups:
+    - title: "New Features"
+      regexp: '^.*?feat(\([[:word:]]+\))??!?:.+$'
+      order: 0
+    - title: "Bug Fixes"
+      regexp: '^.*?fix(\([[:word:]]+\))??!?:.+$'
+      order: 1
+    - title: "Performance Improvements"
+      regexp: '^.*?perf(\([[:word:]]+\))??!?:.+$'
+      order: 2
+    - title: "Other Changes"
+      order: 999
+
+brews:
+  - name: openax
+    description: "A powerful OpenAPI 3.x specification filtering tool and Go library"
+    homepage: "https://github.com/imtanmoy/openax"
+    license: "MIT"
+    repository:
+      owner: imtanmoy
+      name: homebrew-tap
+    commit_author:
+      name: goreleaserbot
+      email: bot@goreleaser.com
+    directory: Formula
+    install: |
+      bin.install "openax"
+    test: |
+      system "#{bin}/openax", "--version"
+
+dockers:
+  - image_templates:
+      - "ghcr.io/imtanmoy/openax:{{ .Tag }}"
+      - "ghcr.io/imtanmoy/openax:v{{ .Major }}"
+      - "ghcr.io/imtanmoy/openax:v{{ .Major }}.{{ .Minor }}"
+      - "ghcr.io/imtanmoy/openax:latest"
+    dockerfile: Dockerfile
+    build_flag_templates:
+      - "--pull"
+      - "--label=org.opencontainers.image.created={{.Date}}"
+      - "--label=org.opencontainers.image.title={{.ProjectName}}"
+      - "--label=org.opencontainers.image.revision={{.FullCommit}}"
+      - "--label=org.opencontainers.image.version={{.Version}}"
+      - "--label=org.opencontainers.image.source={{.GitURL}}"
+      - "--platform=linux/amd64"
+
+nfpms:
+  - id: openax
+    package_name: openax
+    file_name_template: "{{ .ConventionalFileName }}"
+    vendor: Tanmoy Banik
+    homepage: https://github.com/imtanmoy/openax
+    maintainer: Tanmoy Banik <imtanmoybanik@gmail.com>
+    description: A powerful OpenAPI 3.x specification filtering tool and Go library
+    license: MIT
+    formats:
+      - deb
+      - rpm
+    bindir: /usr/bin
+
+release:
+  github:
+    owner: imtanmoy
+    name: openax
+  draft: false
+  prerelease: auto
+  mode: replace
+  header: |
+    ## OpenAx {{ .Tag }}
+
+    Welcome to this new release of OpenAx! 🚀
+
+    ### Installation
+
+    #### Binary Download
+    Download the appropriate binary for your platform from the assets below.
+
+    #### Homebrew (macOS/Linux)
+    ```bash
+    brew install imtanmoy/tap/openax
+    ```
+
+    #### Go Install
+    ```bash
+    go install github.com/imtanmoy/openax@{{ .Tag }}
+    ```
+
+    #### Docker
+    ```bash
+    docker pull ghcr.io/imtanmoy/openax:{{ .Tag }}
+    ```
+
+  footer: |
+    ## Thanks!
+
+    Those were the changes on {{ .Tag }}! Come chat with us on [GitHub Discussions](https://github.com/imtanmoy/openax/discussions) and feel free to reach out if you have any questions.
+
+    **Full Changelog**: https://github.com/imtanmoy/openax/compare/{{ .PreviousTag }}...{{ .Tag }}

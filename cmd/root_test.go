@@ -17,8 +17,9 @@ func TestNewApp(t *testing.T) {
 
 	assert.Equal(t, "openax", app.Name, "App name should be 'openax'")
 	assert.NotEmpty(t, app.Usage, "App usage should not be empty")
-	assert.NotEmpty(t, app.Version, "App version should not be empty")
 	assert.NotEmpty(t, app.Flags, "App should have flags defined")
+	
+	// Version is set dynamically in main.go, so we don't test it here
 }
 
 func TestAppFlags(t *testing.T) {

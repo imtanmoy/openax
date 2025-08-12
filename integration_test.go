@@ -2,7 +2,6 @@ package main_test
 
 import (
 	"context"
-	"os"
 	"path/filepath"
 	"testing"
 
@@ -272,7 +271,3 @@ func BenchmarkLoadAndFilter(b *testing.B) {
 }
 
 // Helper to check if file exists
-func fileExists(filename string) bool {
-	_, err := os.Stat(filename)
-	return !os.IsNotExist(err)
-}

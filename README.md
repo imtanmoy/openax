@@ -1,7 +1,10 @@
 # OpenAx 🚀
 
-[![Go Reference](https://pkg.go.dev/badge/github.com/imtanmoy/openax.svg)](https://pkg.go.dev/github.com/imtanmoy/openax)
+[![CI](https://github.com/imtanmoy/openax/workflows/CI/badge.svg)](https://github.com/imtanmoy/openax/actions)
 [![Go Report Card](https://goreportcard.com/badge/github.com/imtanmoy/openax)](https://goreportcard.com/report/github.com/imtanmoy/openax)
+[![Go Reference](https://pkg.go.dev/badge/github.com/imtanmoy/openax.svg)](https://pkg.go.dev/github.com/imtanmoy/openax)
+[![MIT License](https://img.shields.io/github/license/imtanmoy/openax)](LICENSE)
+[![Release](https://img.shields.io/github/release/imtanmoy/openax.svg)](https://github.com/imtanmoy/openax/releases/latest)
 
 OpenAx is a powerful OpenAPI 3.x specification filtering tool and Go library. It allows you to filter large OpenAPI specs by paths, operations, and tags while automatically resolving and including only the referenced components (schemas, parameters, request bodies, responses).
 
@@ -176,6 +179,76 @@ finalResult, err := client.Filter(customFiltered, openax.FilterOptions{
 })
 ```
 
+## 🔧 Error Handling
+
+OpenAx provides comprehensive error handling following Go best practices:
+
+```go
+import (
+    "errors"
+    "fmt"
+    
+    "github.com/imtanmoy/openax/pkg/openax"
+)
+
+func handleOpenAxErrors() {
+    client := openax.New()
+    
+    doc, err := client.LoadAndFilter("api.yaml", openax.FilterOptions{
+        Tags: []string{"users"},
+    })
+    
+    if err != nil {
+        // Check for specific error types
+        var validationErr *openapi3.ValidationError
+        if errors.As(err, &validationErr) {
+            fmt.Printf("Validation failed: %v\n", validationErr)
+            return
+        }
+        
+        // Handle file not found, network errors, etc.
+        fmt.Printf("Failed to load and filter: %v\n", err)
+        return
+    }
+    
+    // Process the filtered document
+    fmt.Printf("Successfully filtered to %d paths\n", doc.Paths.Len())
+}
+```
+
+## 📋 Best Practices
+
+### Resource Management
+
+```go
+// Always handle errors appropriately
+doc, err := client.LoadFromFile("large-api.yaml")
+if err != nil {
+    return fmt.Errorf("failed to load spec: %w", err)
+}
+
+// Validate before filtering for better error messages
+if err := client.Validate(doc); err != nil {
+    return fmt.Errorf("invalid OpenAPI spec: %w", err)
+}
+```
+
+### Performance Optimization
+
+```go
+// Use specific filters to reduce processing time
+opts := openax.FilterOptions{
+    Paths: []string{"/api/v1/users"}, // Specific paths are faster than broad filters
+    Tags:  []string{"public"},        // Tag filtering is very efficient
+}
+
+// Pre-validate large specifications
+err := client.ValidateOnly("large-spec.yaml")
+if err != nil {
+    // Handle validation errors before expensive filtering
+}
+```
+
 ## 📁 Project Structure
 
 ```
@@ -200,7 +273,7 @@ openax/
 - **API Documentation**: Create focused docs from large specifications
 - **Client Generation**: Generate clients for specific service areas
 - **Testing**: Create minimal specs for testing specific functionality
-- **Microservices**: Extract service-specific APIs from monolithic specs
+- **Micro-services**: Extract service-specific APIs from monolithic specs
 - **Public APIs**: Filter internal specs to expose only public endpoints
 - **Versioning**: Create version-specific API specifications
 

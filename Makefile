@@ -115,8 +115,15 @@ deps-update: ## Update dependencies
 check: test-short vet lint ## Run pre-commit checks
 	@echo "✅ All checks passed!"
 
-ci: deps test-race test-cover vet ## Run CI pipeline
+ci: deps test-race test-cover vet lint examples ## Run CI pipeline
 	@echo "✅ CI pipeline completed!"
+
+# Quality gates (inspired by lifecycle project)
+quality: test-cover lint vet ## Run all quality checks
+	@echo "✅ Quality checks completed!"
+
+pre-commit: fmt vet lint test-short ## Run pre-commit checks
+	@echo "✅ Pre-commit checks passed!"
 
 # Git hooks
 install-hooks: ## Install git hooks
