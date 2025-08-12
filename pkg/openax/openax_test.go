@@ -4,14 +4,14 @@ import (
 	"context"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/imtanmoy/openax/pkg/openax"
 )
 
 func TestNew(t *testing.T) {
 	client := openax.New()
-	if client == nil {
-		t.Fatal("New() returned nil")
-	}
+	require.NotNil(t, client, "New() should not return nil")
 }
 
 func TestNewWithOptions(t *testing.T) {
@@ -20,9 +20,7 @@ func TestNewWithOptions(t *testing.T) {
 		Context:           context.Background(),
 	}
 	client := openax.NewWithOptions(opts)
-	if client == nil {
-		t.Fatal("NewWithOptions() returned nil")
-	}
+	require.NotNil(t, client, "NewWithOptions() should not return nil")
 }
 
 func TestLoadFromFile(t *testing.T) {
@@ -50,19 +48,13 @@ func TestLoadFromFile(t *testing.T) {
 			doc, err := client.LoadFromFile(tc.filePath)
 			
 			if tc.expectError {
-				if err == nil {
-					t.Errorf("Expected error but got none")
-				}
+				assert.Error(t, err, "Expected error for %s", tc.name)
+				assert.Nil(t, doc, "Document should be nil on error")
 				return
 			}
 			
-			if err != nil {
-				t.Fatalf("Unexpected error: %v", err)
-			}
-			
-			if doc == nil {
-				t.Fatal("Document is nil")
-			}
+			require.NoError(t, err, "Unexpected error for %s", tc.name)
+			require.NotNil(t, doc, "Document should not be nil")
 		})
 	}
 }
@@ -71,14 +63,10 @@ func TestValidate(t *testing.T) {
 	client := openax.New()
 	
 	doc, err := client.LoadFromFile("../../testdata/specs/simple.yaml")
-	if err != nil {
-		t.Fatalf("Failed to load spec: %v", err)
-	}
+	require.NoError(t, err, "Failed to load spec")
 	
 	err = client.Validate(doc)
-	if err != nil {
-		t.Errorf("Validation failed: %v", err)
-	}
+	assert.NoError(t, err, "Validation should succeed for valid spec")
 }
 
 func TestValidateOnly(t *testing.T) {
@@ -111,13 +99,9 @@ func TestValidateOnly(t *testing.T) {
 			err := client.ValidateOnly(tc.source)
 			
 			if tc.expectError {
-				if err == nil {
-					t.Errorf("Expected error but got none")
-				}
+				assert.Error(t, err, "Expected error for %s", tc.name)
 			} else {
-				if err != nil {
-					t.Errorf("Unexpected error: %v", err)
-				}
+				assert.NoError(t, err, "Unexpected error for %s", tc.name)
 			}
 		})
 	}
@@ -127,9 +111,7 @@ func TestFilter(t *testing.T) {
 	client := openax.New()
 	
 	doc, err := client.LoadFromFile("../../testdata/specs/simple.yaml")
-	if err != nil {
-		t.Fatalf("Failed to load spec: %v", err)
-	}
+	require.NoError(t, err, "Failed to load spec")
 	
 	testCases := []struct {
 		name           string
@@ -205,32 +187,18 @@ func TestFilter(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			filtered, err := client.Filter(doc, tc.options)
-			if err != nil {
-				t.Fatalf("Filter failed: %v", err)
-			}
-			
-			if filtered == nil {
-				t.Fatal("Filtered document is nil")
-			}
+			require.NoError(t, err, "Filter should not fail")
+			require.NotNil(t, filtered, "Filtered document should not be nil")
 			
 			actualPaths := filtered.Paths.Len()
-			if actualPaths != tc.expectedPaths {
-				t.Errorf("Expected %d paths, got %d", tc.expectedPaths, actualPaths)
-			}
+			assert.Equal(t, tc.expectedPaths, actualPaths, "Path count mismatch")
 			
 			actualSchemas := len(filtered.Components.Schemas)
-			if actualSchemas != tc.expectedSchema {
-				t.Errorf("Expected %d schemas, got %d", tc.expectedSchema, actualSchemas)
-			}
+			assert.Equal(t, tc.expectedSchema, actualSchemas, "Schema count mismatch")
 			
 			// Verify the filtered document still has required fields
-			if filtered.OpenAPI == "" {
-				t.Error("Filtered document missing OpenAPI version")
-			}
-			
-			if filtered.Info == nil {
-				t.Error("Filtered document missing Info")
-			}
+			assert.NotEmpty(t, filtered.OpenAPI, "Filtered document should have OpenAPI version")
+			assert.NotNil(t, filtered.Info, "Filtered document should have Info")
 		})
 	}
 }
@@ -275,19 +243,13 @@ func TestLoadAndFilter(t *testing.T) {
 			filtered, err := client.LoadAndFilter(tc.source, tc.options)
 			
 			if tc.expectError {
-				if err == nil {
-					t.Errorf("Expected error but got none")
-				}
+				assert.Error(t, err, "Expected error for %s", tc.name)
+				assert.Nil(t, filtered, "Document should be nil on error")
 				return
 			}
 			
-			if err != nil {
-				t.Fatalf("Unexpected error: %v", err)
-			}
-			
-			if filtered == nil {
-				t.Fatal("Filtered document is nil")
-			}
+			require.NoError(t, err, "Unexpected error for %s", tc.name)
+			require.NotNil(t, filtered, "Filtered document should not be nil")
 		})
 	}
 }
@@ -300,15 +262,7 @@ func TestFilterOptions(t *testing.T) {
 		Tags:       []string{"public", "v1"},
 	}
 	
-	if len(opts.Paths) != 2 {
-		t.Errorf("Expected 2 paths, got %d", len(opts.Paths))
-	}
-	
-	if len(opts.Operations) != 2 {
-		t.Errorf("Expected 2 operations, got %d", len(opts.Operations))
-	}
-	
-	if len(opts.Tags) != 2 {
-		t.Errorf("Expected 2 tags, got %d", len(opts.Tags))
-	}
+	assert.Len(t, opts.Paths, 2, "Expected 2 paths")
+	assert.Len(t, opts.Operations, 2, "Expected 2 operations")
+	assert.Len(t, opts.Tags, 2, "Expected 2 tags")
 }

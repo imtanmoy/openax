@@ -6,14 +6,14 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/imtanmoy/openax/pkg/loader"
 )
 
 func TestNew(t *testing.T) {
 	l := loader.New()
-	if l == nil {
-		t.Fatal("New() returned nil")
-	}
+	require.NotNil(t, l, "New() should not return nil")
 }
 
 func TestNewWithOptions(t *testing.T) {
@@ -22,9 +22,7 @@ func TestNewWithOptions(t *testing.T) {
 		Context:           context.Background(),
 	}
 	l := loader.NewWithOptions(opts)
-	if l == nil {
-		t.Fatal("NewWithOptions() returned nil")
-	}
+	require.NotNil(t, l, "NewWithOptions() should not return nil")
 }
 
 func TestLoadFromFile(t *testing.T) {
@@ -57,27 +55,16 @@ func TestLoadFromFile(t *testing.T) {
 			doc, err := l.LoadFromFile(tc.filePath)
 			
 			if tc.expectError {
-				if err == nil {
-					t.Errorf("Expected error but got none")
-				}
+				assert.Error(t, err, "Expected error for %s", tc.name)
+				assert.Nil(t, doc, "Document should be nil on error")
 				return
 			}
 			
-			if err != nil {
-				t.Fatalf("Unexpected error: %v", err)
-			}
+			require.NoError(t, err, "Unexpected error for %s", tc.name)
+			require.NotNil(t, doc, "Document should not be nil")
 			
-			if doc == nil {
-				t.Fatal("Document is nil")
-			}
-			
-			if doc.Info == nil {
-				t.Fatal("Document info is nil")
-			}
-			
-			if doc.Info.Title == "" {
-				t.Fatal("Document title is empty")
-			}
+			assert.NotNil(t, doc.Info, "Document info should not be nil")
+			assert.NotEmpty(t, doc.Info.Title, "Document title should not be empty")
 		})
 	}
 }

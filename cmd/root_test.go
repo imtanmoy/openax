@@ -6,30 +6,19 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/imtanmoy/openax/cmd"
 )
 
 func TestNewApp(t *testing.T) {
 	app := cmd.NewApp()
-	if app == nil {
-		t.Fatal("NewApp() returned nil")
-	}
+	require.NotNil(t, app, "NewApp() should not return nil")
 
-	if app.Name != "openax" {
-		t.Errorf("Expected app name 'openax', got '%s'", app.Name)
-	}
-
-	if app.Usage == "" {
-		t.Error("App usage should not be empty")
-	}
-
-	if app.Version == "" {
-		t.Error("App version should not be empty")
-	}
-
-	if len(app.Flags) == 0 {
-		t.Error("App should have flags defined")
-	}
+	assert.Equal(t, "openax", app.Name, "App name should be 'openax'")
+	assert.NotEmpty(t, app.Usage, "App usage should not be empty")
+	assert.NotEmpty(t, app.Version, "App version should not be empty")
+	assert.NotEmpty(t, app.Flags, "App should have flags defined")
 }
 
 func TestAppFlags(t *testing.T) {
@@ -50,9 +39,7 @@ func TestAppFlags(t *testing.T) {
 	}
 
 	for _, expectedFlag := range expectedFlags {
-		if !flagNames[expectedFlag] {
-			t.Errorf("Expected flag '%s' not found", expectedFlag)
-		}
+		assert.True(t, flagNames[expectedFlag], "Expected flag '%s' not found", expectedFlag)
 	}
 }
 
@@ -66,7 +53,7 @@ func TestAppHelp(t *testing.T) {
 	// This would normally exit, but we can test that it doesn't panic
 	defer func() {
 		if r := recover(); r != nil {
-			t.Errorf("App panicked with help flag: %v", r)
+			assert.Fail(t, "App panicked with help flag", "panic: %v", r)
 		}
 	}()
 
