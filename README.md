@@ -1,7 +1,7 @@
 # OpenAx 🚀
 
 [![CI](https://github.com/imtanmoy/openax/workflows/CI/badge.svg)](https://github.com/imtanmoy/openax/actions)
-[![npm version](https://img.shields.io/npm/v/openax.svg)](https://www.npmjs.com/package/openax)
+[![npm version](https://img.shields.io/npm/v/@imtanmoy/openax.svg)](https://www.npmjs.com/package/@imtanmoy/openax)
 [![Go Report Card](https://goreportcard.com/badge/github.com/imtanmoy/openax)](https://goreportcard.com/report/github.com/imtanmoy/openax)
 [![Go Reference](https://pkg.go.dev/badge/github.com/imtanmoy/openax.svg)](https://pkg.go.dev/github.com/imtanmoy/openax)
 [![MIT License](https://img.shields.io/github/license/imtanmoy/openax)](LICENSE)
@@ -26,10 +26,10 @@ OpenAx is a powerful OpenAPI 3.x specification filtering tool and Go library. It
 #### npm (Recommended)
 ```bash
 # Install globally via npm
-npm install -g openax
+npm install -g @imtanmoy/openax
 
 # Or use directly with npx
-npx openax --help
+npx @imtanmoy/openax --help
 ```
 
 #### Alternative Installation Methods
