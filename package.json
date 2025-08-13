@@ -1,0 +1,53 @@
+{
+  "name": "openax",
+  "version": "1.0.0",
+  "description": "A powerful OpenAPI 3.x specification filtering tool",
+  "main": "bin/openax",
+  "bin": {
+    "openax": "bin/openax"
+  },
+  "scripts": {
+    "postinstall": "node scripts/install.js",
+    "test": "node scripts/test.js"
+  },
+  "keywords": [
+    "openapi",
+    "swagger",
+    "api",
+    "filter",
+    "specification",
+    "cli",
+    "tool",
+    "yaml",
+    "json"
+  ],
+  "author": "Tanmoy Banik <imtanmoybanik@gmail.com>",
+  "license": "MIT",
+  "homepage": "https://github.com/imtanmoy/openax",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/imtanmoy/openax.git"
+  },
+  "bugs": {
+    "url": "https://github.com/imtanmoy/openax/issues"
+  },
+  "engines": {
+    "node": ">=14.0.0"
+  },
+  "os": [
+    "darwin",
+    "linux",
+    "win32"
+  ],
+  "cpu": [
+    "x64",
+    "arm64"
+  ],
+  "files": [
+    "bin/",
+    "scripts/",
+    "README.md",
+    "LICENSE"
+  ],
+  "preferGlobal": true
+}

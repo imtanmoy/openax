@@ -33,9 +33,10 @@ go.work
 ehthumbs.db
 Thumbs.db
 
-# Built binary
+# Built binaries
 /openax
 openax.exe
+bin/openax*
 
 # Keep test data and examples
 !testdata/**/*
@@ -67,3 +68,10 @@ tmp/
 dist/
 build/
 release/
+
+# npm
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+*.tgz
