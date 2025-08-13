@@ -85,7 +85,7 @@ release:
 
     #### npm
     ```bash
-    npm install -g openax
+    npm install -g @imtanmoy/openax
     ```
 
     #### Binary Download
