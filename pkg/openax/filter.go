@@ -8,6 +8,13 @@ import (
 	"github.com/getkin/kin-openapi/openapi3"
 )
 
+// createLocation creates a SourceLocation for the given spec path
+func createLocation(specPath string) *SourceLocation {
+	return &SourceLocation{
+		Path: specPath,
+	}
+}
+
 // applyFilter applies filtering to an OpenAPI specification based on the provided options.
 func applyFilter(doc *openapi3.T, opts FilterOptions) (*openapi3.T, error) {
 	filtered := createFilteredSpec(doc)
@@ -267,12 +274,20 @@ func extractRefName(ref string) string {
 }
 
 // validateRef checks if a reference string follows the expected pattern
-func validateRef(ref string) (string, error) {
+func validateRef(ref string, location *SourceLocation) (string, error) {
 	if ref == "" {
-		return "", InvalidReferenceError{Ref: ref, Reason: "empty reference"}
+		return "", InvalidReferenceError{
+			Ref:      ref,
+			Reason:   "empty reference",
+			Location: location,
+		}
 	}
 	if !strings.HasPrefix(ref, "#/components/") {
-		return "", InvalidReferenceError{Ref: ref, Reason: "invalid format"}
+		return "", InvalidReferenceError{
+			Ref:      ref,
+			Reason:   "invalid format",
+			Location: location,
+		}
 	}
 	return extractRefName(ref), nil
 }
@@ -312,7 +327,7 @@ func processOperationRequestBody(doc *openapi3.T, operation *openapi3.Operation,
 	}
 
 	if operation.RequestBody.Ref != "" {
-		requestBodyName, err := validateRef(operation.RequestBody.Ref)
+		requestBodyName, err := validateRef(operation.RequestBody.Ref, createLocation("requestBody"))
 		if err != nil {
 			return err
 		}
@@ -334,7 +349,7 @@ func processOperationRequestBody(doc *openapi3.T, operation *openapi3.Operation,
 func processOperationParameters(doc *openapi3.T, operation *openapi3.Operation, processedSchemaRefs map[string]bool, processedParameterRefs map[string]bool) error {
 	for _, param := range operation.Parameters {
 		if param.Ref != "" {
-			paramName, err := validateRef(param.Ref)
+			paramName, err := validateRef(param.Ref, createLocation("parameter"))
 			if err != nil {
 				return err
 			}
@@ -343,7 +358,7 @@ func processOperationParameters(doc *openapi3.T, operation *openapi3.Operation, 
 			// Get the actual parameter to check its schema
 			if parameter, ok := doc.Components.Parameters[paramName]; ok {
 				if parameter.Value != nil && parameter.Value.Schema != nil && parameter.Value.Schema.Ref != "" {
-					schemaName, err := validateRef(parameter.Value.Schema.Ref)
+					schemaName, err := validateRef(parameter.Value.Schema.Ref, createLocation("parameter.schema"))
 					if err != nil {
 						return err
 					}
@@ -351,7 +366,7 @@ func processOperationParameters(doc *openapi3.T, operation *openapi3.Operation, 
 				}
 			}
 		} else if param.Value != nil && param.Value.Schema != nil && param.Value.Schema.Ref != "" {
-			schemaName, err := validateRef(param.Value.Schema.Ref)
+			schemaName, err := validateRef(param.Value.Schema.Ref, createLocation("parameter.schema"))
 			if err != nil {
 				return err
 			}
@@ -365,7 +380,7 @@ func processOperationParameters(doc *openapi3.T, operation *openapi3.Operation, 
 func processOperationResponses(doc *openapi3.T, operation *openapi3.Operation, mimeTypes []string, processedSchemaRefs map[string]bool, processedResponseRefs map[string]bool) error {
 	for _, response := range operation.Responses.Map() {
 		if response.Ref != "" {
-			responseName, err := validateRef(response.Ref)
+			responseName, err := validateRef(response.Ref, createLocation("response"))
 			if err != nil {
 				return err
 			}
@@ -428,7 +443,7 @@ func resolveSchemaRefsRecursively(
 
 	// If this schema itself references another schema
 	if schema.Ref != "" {
-		refName, err := validateRef(schema.Ref)
+		refName, err := validateRef(schema.Ref, createLocation(fmt.Sprintf("schema.%s", schemaName)))
 		if err != nil {
 			return fmt.Errorf("%w (in schema %s)", err, schemaName)
 		}
@@ -466,7 +481,7 @@ func processSchemaItems(doc *openapi3.T, filtered *openapi3.T, schema *openapi3.
 	}
 
 	if schema.Value.Items.Ref != "" {
-		refName, err := validateRef(schema.Value.Items.Ref)
+		refName, err := validateRef(schema.Value.Items.Ref, createLocation(fmt.Sprintf("schema.%s.items", schemaName)))
 		if err != nil {
 			return fmt.Errorf("%w (in schema %s.items)", err, schemaName)
 		}
@@ -488,7 +503,7 @@ func processSchemaItems(doc *openapi3.T, filtered *openapi3.T, schema *openapi3.
 func processItemProperties(doc *openapi3.T, filtered *openapi3.T, schema *openapi3.SchemaRef, schemaName string, processedRefs map[string]bool) error {
 	for propName, propSchema := range schema.Value.Items.Value.Properties {
 		if propSchema.Ref != "" {
-			refName, err := validateRef(propSchema.Ref)
+			refName, err := validateRef(propSchema.Ref, createLocation(fmt.Sprintf("schema.%s.items.properties.%s", schemaName, propName)))
 			if err != nil {
 				return fmt.Errorf("%w (in schema %s.items.properties.%s)", err, schemaName, propName)
 			}
@@ -501,7 +516,7 @@ func processItemProperties(doc *openapi3.T, filtered *openapi3.T, schema *openap
 
 		// Process nested items within item properties
 		if propSchema.Value != nil && propSchema.Value.Items != nil && propSchema.Value.Items.Ref != "" {
-			refName, err := validateRef(propSchema.Value.Items.Ref)
+			refName, err := validateRef(propSchema.Value.Items.Ref, createLocation(fmt.Sprintf("schema.%s.items.properties.%s.items", schemaName, propName)))
 			if err != nil {
 				return fmt.Errorf("%w (in schema %s.items.properties.%s.items)",
 					err, schemaName, propName)
@@ -537,7 +552,7 @@ func processSchemaProperties(doc *openapi3.T, filtered *openapi3.T, schema *open
 // processPropertyRef processes a property reference
 func processPropertyRef(doc *openapi3.T, filtered *openapi3.T, propSchema *openapi3.SchemaRef, schemaName, propName string, processedRefs map[string]bool) error {
 	if propSchema.Ref != "" {
-		refName, err := validateRef(propSchema.Ref)
+		refName, err := validateRef(propSchema.Ref, createLocation(fmt.Sprintf("schema.%s.properties.%s", schemaName, propName)))
 		if err != nil {
 			return fmt.Errorf("%w (in schema %s.properties.%s)", err, schemaName, propName)
 		}
@@ -557,7 +572,7 @@ func processNestedPropertyObjects(doc *openapi3.T, filtered *openapi3.T, propSch
 
 	// Handle arrays of objects in properties
 	if propSchema.Value.Items != nil && propSchema.Value.Items.Ref != "" {
-		refName, err := validateRef(propSchema.Value.Items.Ref)
+		refName, err := validateRef(propSchema.Value.Items.Ref, createLocation(fmt.Sprintf("schema.%s.properties.%s.items", schemaName, propName)))
 		if err != nil {
 			return fmt.Errorf("%w (in schema %s.properties.%s.items)", err, schemaName, propName)
 		}
@@ -580,7 +595,7 @@ func processNestedPropertyObjects(doc *openapi3.T, filtered *openapi3.T, propSch
 func processNestedProperties(doc *openapi3.T, filtered *openapi3.T, propSchema *openapi3.SchemaRef, schemaName, propName string, processedRefs map[string]bool) error {
 	for nestedPropName, nestedProp := range propSchema.Value.Properties {
 		if nestedProp.Ref != "" {
-			refName, err := validateRef(nestedProp.Ref)
+			refName, err := validateRef(nestedProp.Ref, createLocation(fmt.Sprintf("schema.%s.properties.%s.%s", schemaName, propName, nestedPropName)))
 			if err != nil {
 				return fmt.Errorf("%w (in schema %s.properties.%s.%s)",
 					err, schemaName, propName, nestedPropName)
@@ -594,7 +609,7 @@ func processNestedProperties(doc *openapi3.T, filtered *openapi3.T, propSchema *
 
 		// Process even deeper nested items if they exist
 		if nestedProp.Value != nil && nestedProp.Value.Items != nil && nestedProp.Value.Items.Ref != "" {
-			refName, err := validateRef(nestedProp.Value.Items.Ref)
+			refName, err := validateRef(nestedProp.Value.Items.Ref, createLocation(fmt.Sprintf("schema.%s.properties.%s.%s.items", schemaName, propName, nestedPropName)))
 			if err != nil {
 				return fmt.Errorf("%w (in schema %s.properties.%s.%s.items)",
 					err, schemaName, propName, nestedPropName)
@@ -623,7 +638,7 @@ func processCompositionSchemas(doc *openapi3.T, filtered *openapi3.T, schema *op
 	for _, compType := range compositionTypes {
 		for i, compositionSchema := range compType.schemas {
 			if compositionSchema.Ref != "" {
-				refName, err := validateRef(compositionSchema.Ref)
+				refName, err := validateRef(compositionSchema.Ref, createLocation(fmt.Sprintf("schema.%s.%s[%d]", schemaName, compType.name, i)))
 				if err != nil {
 					return fmt.Errorf("%w (in schema %s.%s[%d])", err, schemaName, compType.name, i)
 				}
@@ -722,7 +737,7 @@ func extractSchemaReferences(schema *openapi3.SchemaRef, processedSchemaRefs map
 
 	// Direct reference
 	if schema.Ref != "" {
-		schemaName, err := validateRef(schema.Ref)
+		schemaName, err := validateRef(schema.Ref, createLocation("schema.ref"))
 		if err != nil {
 			return err
 		}
