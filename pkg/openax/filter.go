@@ -106,78 +106,95 @@ type ComponentUsage struct {
 // findTransitivelyUsedComponents finds all components that are transitively referenced
 func findTransitivelyUsedComponents(filtered *openapi3.T, usage *ComponentUsage) {
 	// Keep iterating until no new components are found
-	changed := true
-	for changed {
-		changed = false
+	for {
+		changed := false
+		changed = processSchemaTransitiveRefs(filtered, usage) || changed
+		changed = processParameterTransitiveRefs(filtered, usage) || changed
+		changed = processRequestBodyTransitiveRefs(filtered, usage) || changed
+		changed = processResponseTransitiveRefs(filtered, usage) || changed
 
-		// Check schemas for transitive references
-		for schemaName := range usage.Schemas {
-			if schema, exists := filtered.Components.Schemas[schemaName]; exists && schema != nil {
-				refs := make(map[string]bool)
-				if err := extractSchemaReferences(schema, refs); err == nil {
-					for refName := range refs {
-						if !usage.Schemas[refName] {
-							usage.Schemas[refName] = true
-							changed = true
-						}
-					}
-				}
-			}
+		if !changed {
+			break
 		}
+	}
+}
 
-		// Check parameters for schema references
-		for paramName := range usage.Parameters {
-			if param, exists := filtered.Components.Parameters[paramName]; exists && param.Value != nil && param.Value.Schema != nil {
-				refs := make(map[string]bool)
-				if err := extractSchemaReferences(param.Value.Schema, refs); err == nil {
-					for refName := range refs {
-						if !usage.Schemas[refName] {
-							usage.Schemas[refName] = true
-							changed = true
-						}
-					}
-				}
-			}
-		}
-
-		// Check request bodies for schema references
-		for rbName := range usage.RequestBodies {
-			if rb, exists := filtered.Components.RequestBodies[rbName]; exists && rb.Value != nil {
-				for _, mediaType := range rb.Value.Content {
-					if mediaType.Schema != nil {
-						refs := make(map[string]bool)
-						if err := extractSchemaReferences(mediaType.Schema, refs); err == nil {
-							for refName := range refs {
-								if !usage.Schemas[refName] {
-									usage.Schemas[refName] = true
-									changed = true
-								}
-							}
-						}
-					}
-				}
-			}
-		}
-
-		// Check responses for schema references
-		for respName := range usage.Responses {
-			if resp, exists := filtered.Components.Responses[respName]; exists && resp.Value != nil {
-				for _, mediaType := range resp.Value.Content {
-					if mediaType.Schema != nil {
-						refs := make(map[string]bool)
-						if err := extractSchemaReferences(mediaType.Schema, refs); err == nil {
-							for refName := range refs {
-								if !usage.Schemas[refName] {
-									usage.Schemas[refName] = true
-									changed = true
-								}
-							}
-						}
+func processSchemaTransitiveRefs(filtered *openapi3.T, usage *ComponentUsage) bool {
+	changed := false
+	for schemaName := range usage.Schemas {
+		if schema, exists := filtered.Components.Schemas[schemaName]; exists && schema != nil {
+			refs := make(map[string]bool)
+			if err := extractSchemaReferences(schema, refs); err == nil {
+				for refName := range refs {
+					if !usage.Schemas[refName] {
+						usage.Schemas[refName] = true
+						changed = true
 					}
 				}
 			}
 		}
 	}
+	return changed
+}
+
+func processParameterTransitiveRefs(filtered *openapi3.T, usage *ComponentUsage) bool {
+	changed := false
+	for paramName := range usage.Parameters {
+		if param, exists := filtered.Components.Parameters[paramName]; exists && param.Value != nil && param.Value.Schema != nil {
+			refs := make(map[string]bool)
+			if err := extractSchemaReferences(param.Value.Schema, refs); err == nil {
+				for refName := range refs {
+					if !usage.Schemas[refName] {
+						usage.Schemas[refName] = true
+						changed = true
+					}
+				}
+			}
+		}
+	}
+	return changed
+}
+
+func processRequestBodyTransitiveRefs(filtered *openapi3.T, usage *ComponentUsage) bool {
+	changed := false
+	for rbName := range usage.RequestBodies {
+		if rb, exists := filtered.Components.RequestBodies[rbName]; exists && rb.Value != nil {
+			if processContentSchemaRefs(rb.Value.Content, usage) {
+				changed = true
+			}
+		}
+	}
+	return changed
+}
+
+func processResponseTransitiveRefs(filtered *openapi3.T, usage *ComponentUsage) bool {
+	changed := false
+	for respName := range usage.Responses {
+		if resp, exists := filtered.Components.Responses[respName]; exists && resp.Value != nil {
+			if processContentSchemaRefs(resp.Value.Content, usage) {
+				changed = true
+			}
+		}
+	}
+	return changed
+}
+
+func processContentSchemaRefs(content openapi3.Content, usage *ComponentUsage) bool {
+	changed := false
+	for _, mediaType := range content {
+		if mediaType.Schema != nil {
+			refs := make(map[string]bool)
+			if err := extractSchemaReferences(mediaType.Schema, refs); err == nil {
+				for refName := range refs {
+					if !usage.Schemas[refName] {
+						usage.Schemas[refName] = true
+						changed = true
+					}
+				}
+			}
+		}
+	}
+	return changed
 }
 
 // ProcessedRefs holds all processed reference maps
