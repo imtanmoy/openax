@@ -1,0 +1,142 @@
+components:
+    schemas:
+        Category:
+            properties:
+                id:
+                    example: 1
+                    format: int64
+                    type: integer
+                name:
+                    example: Dogs
+                    type: string
+            type: object
+            xml:
+                name: category
+        Pet:
+            properties:
+                category:
+                    $ref: '#/components/schemas/Category'
+                id:
+                    example: 10
+                    format: int64
+                    type: integer
+                name:
+                    example: doggie
+                    type: string
+                photoUrls:
+                    items:
+                        type: string
+                        xml:
+                            name: photoUrl
+                    type: array
+                    xml:
+                        wrapped: true
+                status:
+                    description: pet status in the store
+                    enum:
+                        - available
+                        - pending
+                        - sold
+                    type: string
+                tags:
+                    items:
+                        $ref: '#/components/schemas/Tag'
+                    type: array
+                    xml:
+                        wrapped: true
+            required:
+                - name
+                - photoUrls
+            type: object
+            xml:
+                name: pet
+        Tag:
+            properties:
+                id:
+                    format: int64
+                    type: integer
+                name:
+                    type: string
+            type: object
+            xml:
+                name: tag
+    securitySchemes:
+        api_key:
+            in: header
+            name: api_key
+            type: apiKey
+        petstore_auth:
+            flows:
+                implicit:
+                    authorizationUrl: https://petstore3.swagger.io/oauth/authorize
+                    scopes:
+                        read:pets: read your pets
+                        write:pets: modify pets in your account
+            type: oauth2
+externalDocs:
+    description: Find out more about Swagger
+    url: https://swagger.io
+info:
+    contact:
+        email: apiteam@swagger.io
+    description: |-
+        This is a sample Pet Store Server based on the OpenAPI 3.0 specification.  You can find out more about
+        Swagger at [https://swagger.io](https://swagger.io). In the third iteration of the pet store, we've switched to the design first approach!
+        You can now help us improve the API whether it's by making changes to the definition itself or to the code.
+        That way, with time, we can improve the API in general, and expose some of the new features in OAS3.
+
+        Some useful links:
+        - [The Pet Store repository](https://github.com/swagger-api/swagger-petstore)
+        - [The source API definition for the Pet Store](https://github.com/swagger-api/swagger-petstore/blob/master/src/main/resources/openapi.yaml)
+    license:
+        name: Apache 2.0
+        url: https://www.apache.org/licenses/LICENSE-2.0.html
+    termsOfService: https://swagger.io/terms/
+    title: Swagger Petstore - OpenAPI 3.0
+    version: 1.0.27
+openapi: 3.0.4
+paths:
+    /pet/{petId}:
+        get:
+            description: Returns a single pet.
+            operationId: getPetById
+            parameters:
+                - description: ID of pet to return
+                  in: path
+                  name: petId
+                  required: true
+                  schema:
+                    format: int64
+                    type: integer
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Pet'
+                        application/xml:
+                            schema:
+                                $ref: '#/components/schemas/Pet'
+                    description: successful operation
+                "400":
+                    description: Invalid ID supplied
+                "404":
+                    description: Pet not found
+                default:
+                    description: Unexpected error
+            security:
+                - api_key: []
+                - petstore_auth:
+                    - write:pets
+                    - read:pets
+            summary: Find pet by ID.
+            tags:
+                - pet
+servers:
+    - url: /api/v3
+tags:
+    - description: Everything about your Pets
+      externalDocs:
+        description: Find out more
+        url: https://swagger.io
+      name: pet

@@ -220,7 +220,7 @@ func resolveRequestBodyRefs(doc *openapi3.T, filtered *openapi3.T, requestBodyRe
 	for requestBodyName := range requestBodyRefs {
 		requestBody, ok := doc.Components.RequestBodies[requestBodyName]
 		if !ok {
-			return fmt.Errorf("request body not found: %s", requestBodyName)
+			return &ComponentNotFoundError{Name: requestBodyName, Type: "request body"}
 		}
 		filtered.Components.RequestBodies[requestBodyName] = requestBody
 	}
@@ -232,7 +232,7 @@ func resolveParameterRefs(doc *openapi3.T, filtered *openapi3.T, parameterRefs m
 	for paramName := range parameterRefs {
 		param, ok := doc.Components.Parameters[paramName]
 		if !ok {
-			return fmt.Errorf("parameter not found: %s", paramName)
+			return &ComponentNotFoundError{Name: paramName, Type: "parameter"}
 		}
 		filtered.Components.Parameters[paramName] = param
 	}
@@ -244,7 +244,7 @@ func resolveResponseRefs(doc *openapi3.T, filtered *openapi3.T, responseRefs map
 	for responseName := range responseRefs {
 		response, ok := doc.Components.Responses[responseName]
 		if !ok {
-			return fmt.Errorf("response not found: %s", responseName)
+			return &ComponentNotFoundError{Name: responseName, Type: "response"}
 		}
 		filtered.Components.Responses[responseName] = response
 	}
@@ -269,10 +269,10 @@ func extractRefName(ref string) string {
 // validateRef checks if a reference string follows the expected pattern
 func validateRef(ref string) (string, error) {
 	if ref == "" {
-		return "", fmt.Errorf("invalid reference: empty reference")
+		return "", InvalidReferenceError{Ref: ref, Reason: "empty reference"}
 	}
 	if !strings.HasPrefix(ref, "#/components/") {
-		return "", fmt.Errorf("invalid reference format: %s", ref)
+		return "", InvalidReferenceError{Ref: ref, Reason: "invalid format"}
 	}
 	return extractRefName(ref), nil
 }
@@ -415,12 +415,12 @@ func resolveSchemaRefsRecursively(
 	processedRefs[schemaName] = true
 
 	if doc.Components == nil {
-		return fmt.Errorf("no components section found in document")
+		return &ComponentNotFoundError{Name: "components", Type: "section"}
 	}
 
 	schema, ok := doc.Components.Schemas[schemaName]
 	if !ok {
-		return fmt.Errorf("schema not found: %s (referenced from %s)", schemaName, parentContext)
+		return &ComponentNotFoundError{Name: schemaName, Type: "schema", Context: parentContext}
 	}
 
 	// Add to filtered spec
