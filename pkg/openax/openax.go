@@ -26,6 +26,10 @@ type FilterOptions struct {
 	// Tags specifies which tags to include
 	// If empty, all tags are considered
 	Tags []string
+
+	// PruneComponents removes unused components from the filtered specification
+	// This helps reduce specification size and improves readability
+	PruneComponents bool
 }
 
 // LoadOptions defines options for loading OpenAPI specifications.

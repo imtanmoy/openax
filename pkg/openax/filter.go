@@ -41,7 +41,143 @@ func applyFilter(doc *openapi3.T, opts FilterOptions) (*openapi3.T, error) {
 		return nil, err
 	}
 
+	// Prune unused components if enabled
+	if opts.PruneComponents {
+		pruneUnusedComponents(filtered, processedRefs)
+	}
+
 	return filtered, nil
+}
+
+// pruneUnusedComponents removes components that are not referenced by the filtered spec
+func pruneUnusedComponents(filtered *openapi3.T, processedRefs *ProcessedRefs) {
+	if filtered.Components == nil {
+		return
+	}
+
+	// Create sets of all components and used components
+	usedComponents := &ComponentUsage{
+		Schemas:       processedRefs.Schemas,
+		Parameters:    processedRefs.Parameters,
+		RequestBodies: processedRefs.RequestBodies,
+		Responses:     processedRefs.Responses,
+	}
+
+	// Recursively find all transitively used components
+	findTransitivelyUsedComponents(filtered, usedComponents)
+
+	// Remove unused schemas
+	for schemaName := range filtered.Components.Schemas {
+		if !usedComponents.Schemas[schemaName] {
+			delete(filtered.Components.Schemas, schemaName)
+		}
+	}
+
+	// Remove unused parameters
+	for paramName := range filtered.Components.Parameters {
+		if !usedComponents.Parameters[paramName] {
+			delete(filtered.Components.Parameters, paramName)
+		}
+	}
+
+	// Remove unused request bodies
+	for rbName := range filtered.Components.RequestBodies {
+		if !usedComponents.RequestBodies[rbName] {
+			delete(filtered.Components.RequestBodies, rbName)
+		}
+	}
+
+	// Remove unused responses
+	for respName := range filtered.Components.Responses {
+		if !usedComponents.Responses[respName] {
+			delete(filtered.Components.Responses, respName)
+		}
+	}
+}
+
+// ComponentUsage tracks which components are used
+type ComponentUsage struct {
+	Schemas       map[string]bool
+	Parameters    map[string]bool
+	RequestBodies map[string]bool
+	Responses     map[string]bool
+}
+
+// findTransitivelyUsedComponents finds all components that are transitively referenced
+func findTransitivelyUsedComponents(filtered *openapi3.T, usage *ComponentUsage) {
+	// Keep iterating until no new components are found
+	changed := true
+	for changed {
+		changed = false
+
+		// Check schemas for transitive references
+		for schemaName := range usage.Schemas {
+			if schema, exists := filtered.Components.Schemas[schemaName]; exists && schema != nil {
+				refs := make(map[string]bool)
+				if err := extractSchemaReferences(schema, refs); err == nil {
+					for refName := range refs {
+						if !usage.Schemas[refName] {
+							usage.Schemas[refName] = true
+							changed = true
+						}
+					}
+				}
+			}
+		}
+
+		// Check parameters for schema references
+		for paramName := range usage.Parameters {
+			if param, exists := filtered.Components.Parameters[paramName]; exists && param.Value != nil && param.Value.Schema != nil {
+				refs := make(map[string]bool)
+				if err := extractSchemaReferences(param.Value.Schema, refs); err == nil {
+					for refName := range refs {
+						if !usage.Schemas[refName] {
+							usage.Schemas[refName] = true
+							changed = true
+						}
+					}
+				}
+			}
+		}
+
+		// Check request bodies for schema references
+		for rbName := range usage.RequestBodies {
+			if rb, exists := filtered.Components.RequestBodies[rbName]; exists && rb.Value != nil {
+				for _, mediaType := range rb.Value.Content {
+					if mediaType.Schema != nil {
+						refs := make(map[string]bool)
+						if err := extractSchemaReferences(mediaType.Schema, refs); err == nil {
+							for refName := range refs {
+								if !usage.Schemas[refName] {
+									usage.Schemas[refName] = true
+									changed = true
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+
+		// Check responses for schema references
+		for respName := range usage.Responses {
+			if resp, exists := filtered.Components.Responses[respName]; exists && resp.Value != nil {
+				for _, mediaType := range resp.Value.Content {
+					if mediaType.Schema != nil {
+						refs := make(map[string]bool)
+						if err := extractSchemaReferences(mediaType.Schema, refs); err == nil {
+							for refName := range refs {
+								if !usage.Schemas[refName] {
+									usage.Schemas[refName] = true
+									changed = true
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
 }
 
 // ProcessedRefs holds all processed reference maps
