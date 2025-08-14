@@ -31,8 +31,7 @@ func TestAppFlags(t *testing.T) {
 
 	flagNames := make(map[string]bool)
 	for _, flag := range app.Flags {
-		switch f := flag.(type) {
-		case interface{ Names() []string }:
+		if f, ok := flag.(interface{ Names() []string }); ok {
 			for _, name := range f.Names() {
 				flagNames[name] = true
 			}

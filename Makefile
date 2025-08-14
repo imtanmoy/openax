@@ -122,25 +122,6 @@ ci: deps test-race test-cover vet lint examples ## Run CI pipeline
 quality: test-cover lint vet ## Run all quality checks
 	@echo "✅ Quality checks completed!"
 
-pre-commit: fmt vet lint test-short ## Run pre-commit checks
-	@echo "✅ Pre-commit checks passed!"
-
-# Git hooks
-install-hooks: ## Install git hooks
-	@echo "Installing git hooks..."
-	@echo '#!/bin/sh\nmake check' > .git/hooks/pre-commit
-	@chmod +x .git/hooks/pre-commit
-	@echo "✅ Pre-commit hook installed!"
-
-# Docker targets (future use)
-docker-build: ## Build Docker image
-	@echo "Building Docker image..."
-	docker build -t openax:latest .
-
-docker-test: ## Run tests in Docker
-	@echo "Running tests in Docker..."
-	docker run --rm -v $$(pwd):/app -w /app golang:1.21 make test
-
 # Documentation
 docs: ## Generate documentation
 	@echo "Generating documentation..."

@@ -10,6 +10,43 @@ import (
 
 // applyFilter applies filtering to an OpenAPI specification based on the provided options.
 func applyFilter(doc *openapi3.T, opts FilterOptions) (*openapi3.T, error) {
+	filtered := createFilteredSpec(doc)
+	mimeTypes := findAllMimeTypes(doc)
+	usedTagNames := make(map[string]bool)
+
+	processedRefs := &ProcessedRefs{
+		Schemas:       make(map[string]bool),
+		RequestBodies: make(map[string]bool),
+		Parameters:    make(map[string]bool),
+		Responses:     make(map[string]bool),
+	}
+
+	// Process paths and operations
+	if err := processPathsAndOperations(doc, filtered, opts, mimeTypes, usedTagNames, processedRefs); err != nil {
+		return nil, err
+	}
+
+	// Process tags
+	processUsedTags(doc, filtered, usedTagNames)
+
+	// Resolve all collected references
+	if err := resolveAllReferences(doc, filtered, processedRefs); err != nil {
+		return nil, err
+	}
+
+	return filtered, nil
+}
+
+// ProcessedRefs holds all processed reference maps
+type ProcessedRefs struct {
+	Schemas       map[string]bool
+	RequestBodies map[string]bool
+	Parameters    map[string]bool
+	Responses     map[string]bool
+}
+
+// createFilteredSpec creates the initial filtered OpenAPI spec structure
+func createFilteredSpec(doc *openapi3.T) *openapi3.T {
 	filtered := &openapi3.T{
 		OpenAPI:      doc.OpenAPI,
 		Info:         doc.Info,
@@ -33,83 +70,25 @@ func applyFilter(doc *openapi3.T, opts FilterOptions) (*openapi3.T, error) {
 		filtered.Components.Callbacks = doc.Components.Callbacks
 	}
 
-	mimeTypes := findAllMimeTypes(doc)
-	usedTagNames := make(map[string]bool)
+	return filtered
+}
 
-	processedSchemaRefs := make(map[string]bool)
-	processedRequestBodyRefs := make(map[string]bool)
-	processedParameterRefs := make(map[string]bool)
-	processedResponseRefs := make(map[string]bool)
-
-	// Process paths and operations
+// processPathsAndOperations processes all paths and operations based on filter options
+func processPathsAndOperations(doc *openapi3.T, filtered *openapi3.T, opts FilterOptions, mimeTypes []string, usedTagNames map[string]bool, processedRefs *ProcessedRefs) error {
 	for path, pathItem := range doc.Paths.Map() {
 		// Include entire path if it's in the paths list
 		if len(opts.Paths) > 0 && pathMatchesFilter(path, opts.Paths) {
 			filtered.Paths.Set(path, pathItem)
-
-			// Process all operations in this path to collect references and tags
-			for _, operation := range pathItem.Operations() {
-				if operation != nil {
-					err := collectReferencesFromOperation(doc, operation, mimeTypes,
-						processedSchemaRefs, processedRequestBodyRefs,
-						processedParameterRefs, processedResponseRefs)
-					if err != nil {
-						return nil, err
-					}
-
-					// Collect tags used by this operation
-					for _, tag := range operation.Tags {
-						usedTagNames[tag] = true
-					}
-				}
+			if err := processAllOperationsInPath(doc, pathItem, mimeTypes, usedTagNames, processedRefs); err != nil {
+				return err
 			}
 			continue
 		}
 
-		// Check for operations that match either operation IDs or tags
-		matchedOps := make(map[string]*openapi3.Operation)
-		for method, operation := range pathItem.Operations() {
-			operationMatches := true
-
-			// Check operation filter (if specified)
-			if len(opts.Operations) > 0 {
-				operationMatches = slices.Contains(opts.Operations, operation.OperationID) ||
-					slices.ContainsFunc(opts.Operations, func(op string) bool {
-						return strings.EqualFold(op, method)
-					})
-			}
-
-			// Check tag filter (if specified) - must match at least one tag
-			if len(opts.Tags) > 0 && operationMatches {
-				tagMatches := false
-				for _, operationTag := range operation.Tags {
-					if slices.Contains(opts.Tags, operationTag) {
-						tagMatches = true
-						break
-					}
-				}
-				operationMatches = operationMatches && tagMatches
-			}
-
-			// Include if all specified filters match
-			if operationMatches && (len(opts.Operations) > 0 || len(opts.Tags) > 0 || (len(opts.Operations) == 0 && len(opts.Tags) == 0 && len(opts.Paths) == 0)) {
-				matchedOps[method] = operation
-			}
-
-			// If we matched this operation, process its references and tags
-			if op, included := matchedOps[method]; included {
-				err := collectReferencesFromOperation(doc, op, mimeTypes,
-					processedSchemaRefs, processedRequestBodyRefs,
-					processedParameterRefs, processedResponseRefs)
-				if err != nil {
-					return nil, err
-				}
-
-				// Collect tags used by this operation
-				for _, tag := range op.Tags {
-					usedTagNames[tag] = true
-				}
-			}
+		// Check for operations that match filters
+		matchedOps, err := findMatchingOperations(doc, pathItem, opts, mimeTypes, usedTagNames, processedRefs)
+		if err != nil {
+			return err
 		}
 
 		if len(matchedOps) > 0 {
@@ -120,8 +99,85 @@ func applyFilter(doc *openapi3.T, opts FilterOptions) (*openapi3.T, error) {
 			filtered.Paths.Set(path, pItem)
 		}
 	}
+	return nil
+}
 
-	// Only include tags that are used by filtered operations
+// processAllOperationsInPath processes all operations in a path item
+func processAllOperationsInPath(doc *openapi3.T, pathItem *openapi3.PathItem, mimeTypes []string, usedTagNames map[string]bool, processedRefs *ProcessedRefs) error {
+	for _, operation := range pathItem.Operations() {
+		if operation != nil {
+			err := collectReferencesFromOperation(doc, operation, mimeTypes,
+				processedRefs.Schemas, processedRefs.RequestBodies,
+				processedRefs.Parameters, processedRefs.Responses)
+			if err != nil {
+				return err
+			}
+
+			// Collect tags used by this operation
+			for _, tag := range operation.Tags {
+				usedTagNames[tag] = true
+			}
+		}
+	}
+	return nil
+}
+
+// findMatchingOperations finds operations that match the filter criteria
+func findMatchingOperations(doc *openapi3.T, pathItem *openapi3.PathItem, opts FilterOptions, mimeTypes []string, usedTagNames map[string]bool, processedRefs *ProcessedRefs) (map[string]*openapi3.Operation, error) {
+	matchedOps := make(map[string]*openapi3.Operation)
+
+	for method, operation := range pathItem.Operations() {
+		if operationMatches := checkOperationMatches(operation, method, opts); operationMatches {
+			matchedOps[method] = operation
+
+			// Process references and tags for matched operation
+			err := collectReferencesFromOperation(doc, operation, mimeTypes,
+				processedRefs.Schemas, processedRefs.RequestBodies,
+				processedRefs.Parameters, processedRefs.Responses)
+			if err != nil {
+				return nil, err
+			}
+
+			// Collect tags used by this operation
+			for _, tag := range operation.Tags {
+				usedTagNames[tag] = true
+			}
+		}
+	}
+
+	return matchedOps, nil
+}
+
+// checkOperationMatches checks if an operation matches the filter criteria
+func checkOperationMatches(operation *openapi3.Operation, method string, opts FilterOptions) bool {
+	operationMatches := true
+
+	// Check operation filter (if specified)
+	if len(opts.Operations) > 0 {
+		operationMatches = slices.Contains(opts.Operations, operation.OperationID) ||
+			slices.ContainsFunc(opts.Operations, func(op string) bool {
+				return strings.EqualFold(op, method)
+			})
+	}
+
+	// Check tag filter (if specified) - must match at least one tag
+	if len(opts.Tags) > 0 && operationMatches {
+		tagMatches := false
+		for _, operationTag := range operation.Tags {
+			if slices.Contains(opts.Tags, operationTag) {
+				tagMatches = true
+				break
+			}
+		}
+		operationMatches = operationMatches && tagMatches
+	}
+
+	// Include if all specified filters match
+	return operationMatches && (len(opts.Operations) > 0 || len(opts.Tags) > 0 || (len(opts.Operations) == 0 && len(opts.Tags) == 0 && len(opts.Paths) == 0))
+}
+
+// processUsedTags processes tags that are used by filtered operations
+func processUsedTags(doc *openapi3.T, filtered *openapi3.T, usedTagNames map[string]bool) {
 	if len(usedTagNames) > 0 {
 		filtered.Tags = make(openapi3.Tags, 0)
 
@@ -132,44 +188,67 @@ func applyFilter(doc *openapi3.T, opts FilterOptions) (*openapi3.T, error) {
 			}
 		}
 	}
+}
 
+// resolveAllReferences resolves all collected references
+func resolveAllReferences(doc *openapi3.T, filtered *openapi3.T, processedRefs *ProcessedRefs) error {
 	// Process all collected schema references recursively
-	for schemaName := range processedSchemaRefs {
+	for schemaName := range processedRefs.Schemas {
 		if err := resolveSchemaRefsRecursively(doc, filtered, schemaName, make(map[string]bool), "root"); err != nil {
-			return nil, err
+			return err
 		}
 	}
 
-	// Process all request body references
+	// Process all other references
 	if doc.Components != nil {
-		for requestBodyName := range processedRequestBodyRefs {
-			requestBody, ok := doc.Components.RequestBodies[requestBodyName]
-			if !ok {
-				return nil, fmt.Errorf("request body not found: %s", requestBodyName)
-			}
-			filtered.Components.RequestBodies[requestBodyName] = requestBody
+		if err := resolveRequestBodyRefs(doc, filtered, processedRefs.RequestBodies); err != nil {
+			return err
 		}
-
-		// Process all parameter references
-		for paramName := range processedParameterRefs {
-			param, ok := doc.Components.Parameters[paramName]
-			if !ok {
-				return nil, fmt.Errorf("parameter not found: %s", paramName)
-			}
-			filtered.Components.Parameters[paramName] = param
+		if err := resolveParameterRefs(doc, filtered, processedRefs.Parameters); err != nil {
+			return err
 		}
-
-		// Process all response references
-		for responseName := range processedResponseRefs {
-			response, ok := doc.Components.Responses[responseName]
-			if !ok {
-				return nil, fmt.Errorf("response not found: %s", responseName)
-			}
-			filtered.Components.Responses[responseName] = response
+		if err := resolveResponseRefs(doc, filtered, processedRefs.Responses); err != nil {
+			return err
 		}
 	}
 
-	return filtered, nil
+	return nil
+}
+
+// resolveRequestBodyRefs resolves request body references
+func resolveRequestBodyRefs(doc *openapi3.T, filtered *openapi3.T, requestBodyRefs map[string]bool) error {
+	for requestBodyName := range requestBodyRefs {
+		requestBody, ok := doc.Components.RequestBodies[requestBodyName]
+		if !ok {
+			return fmt.Errorf("request body not found: %s", requestBodyName)
+		}
+		filtered.Components.RequestBodies[requestBodyName] = requestBody
+	}
+	return nil
+}
+
+// resolveParameterRefs resolves parameter references
+func resolveParameterRefs(doc *openapi3.T, filtered *openapi3.T, parameterRefs map[string]bool) error {
+	for paramName := range parameterRefs {
+		param, ok := doc.Components.Parameters[paramName]
+		if !ok {
+			return fmt.Errorf("parameter not found: %s", paramName)
+		}
+		filtered.Components.Parameters[paramName] = param
+	}
+	return nil
+}
+
+// resolveResponseRefs resolves response references
+func resolveResponseRefs(doc *openapi3.T, filtered *openapi3.T, responseRefs map[string]bool) error {
+	for responseName := range responseRefs {
+		response, ok := doc.Components.Responses[responseName]
+		if !ok {
+			return fmt.Errorf("response not found: %s", responseName)
+		}
+		filtered.Components.Responses[responseName] = response
+	}
+	return nil
 }
 
 func pathMatchesFilter(path string, pathFilters []string) bool {
@@ -209,42 +288,50 @@ func collectReferencesFromOperation(
 	processedResponseRefs map[string]bool,
 ) error {
 	// Process request body references
-	if operation.RequestBody != nil {
-		if operation.RequestBody.Ref != "" {
-			requestBodyName, err := validateRef(operation.RequestBody.Ref)
-			if err != nil {
-				return err
-			}
-			processedRequestBodyRefs[requestBodyName] = true
-
-			// Get the actual request body
-			if requestBody, ok := doc.Components.RequestBodies[requestBodyName]; ok {
-				// Process content schemas in the request body
-				for _, mimeType := range mimeTypes {
-					if mediaType := requestBody.Value.Content.Get(mimeType); mediaType != nil {
-						if mediaType.Schema != nil {
-							if err := extractSchemaReferences(mediaType.Schema, processedSchemaRefs); err != nil {
-								return err
-							}
-						}
-					}
-				}
-			}
-		} else if operation.RequestBody.Value != nil {
-			// Process inline request body
-			for _, mimeType := range mimeTypes {
-				if mediaType := operation.RequestBody.Value.Content.Get(mimeType); mediaType != nil {
-					if mediaType.Schema != nil {
-						if err := extractSchemaReferences(mediaType.Schema, processedSchemaRefs); err != nil {
-							return err
-						}
-					}
-				}
-			}
-		}
+	if err := processOperationRequestBody(doc, operation, mimeTypes, processedSchemaRefs, processedRequestBodyRefs); err != nil {
+		return err
 	}
 
 	// Process parameter references
+	if err := processOperationParameters(doc, operation, processedSchemaRefs, processedParameterRefs); err != nil {
+		return err
+	}
+
+	// Process response references
+	if err := processOperationResponses(doc, operation, mimeTypes, processedSchemaRefs, processedResponseRefs); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// processOperationRequestBody processes request body references in an operation
+func processOperationRequestBody(doc *openapi3.T, operation *openapi3.Operation, mimeTypes []string, processedSchemaRefs map[string]bool, processedRequestBodyRefs map[string]bool) error {
+	if operation.RequestBody == nil {
+		return nil
+	}
+
+	if operation.RequestBody.Ref != "" {
+		requestBodyName, err := validateRef(operation.RequestBody.Ref)
+		if err != nil {
+			return err
+		}
+		processedRequestBodyRefs[requestBodyName] = true
+
+		// Get the actual request body
+		if requestBody, ok := doc.Components.RequestBodies[requestBodyName]; ok {
+			return processContentSchemas(requestBody.Value.Content, mimeTypes, processedSchemaRefs)
+		}
+	} else if operation.RequestBody.Value != nil {
+		// Process inline request body
+		return processContentSchemas(operation.RequestBody.Value.Content, mimeTypes, processedSchemaRefs)
+	}
+
+	return nil
+}
+
+// processOperationParameters processes parameter references in an operation
+func processOperationParameters(doc *openapi3.T, operation *openapi3.Operation, processedSchemaRefs map[string]bool, processedParameterRefs map[string]bool) error {
 	for _, param := range operation.Parameters {
 		if param.Ref != "" {
 			paramName, err := validateRef(param.Ref)
@@ -271,8 +358,11 @@ func collectReferencesFromOperation(
 			processedSchemaRefs[schemaName] = true
 		}
 	}
+	return nil
+}
 
-	// Process response references
+// processOperationResponses processes response references in an operation
+func processOperationResponses(doc *openapi3.T, operation *openapi3.Operation, mimeTypes []string, processedSchemaRefs map[string]bool, processedResponseRefs map[string]bool) error {
 	for _, response := range operation.Responses.Map() {
 		if response.Ref != "" {
 			responseName, err := validateRef(response.Ref)
@@ -283,29 +373,30 @@ func collectReferencesFromOperation(
 
 			// Get the actual response to check its schema
 			if responseBody, ok := doc.Components.Responses[responseName]; ok {
-				for _, mimeType := range mimeTypes {
-					if mediaType := responseBody.Value.Content.Get(mimeType); mediaType != nil {
-						if mediaType.Schema != nil {
-							if err := extractSchemaReferences(mediaType.Schema, processedSchemaRefs); err != nil {
-								return err
-							}
-						}
-					}
+				if err := processContentSchemas(responseBody.Value.Content, mimeTypes, processedSchemaRefs); err != nil {
+					return err
 				}
 			}
 		} else if response.Value != nil {
-			for _, mimeType := range mimeTypes {
-				if mediaType := response.Value.Content.Get(mimeType); mediaType != nil {
-					if mediaType.Schema != nil {
-						if err := extractSchemaReferences(mediaType.Schema, processedSchemaRefs); err != nil {
-							return err
-						}
-					}
+			if err := processContentSchemas(response.Value.Content, mimeTypes, processedSchemaRefs); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+// processContentSchemas processes schemas in content for different MIME types
+func processContentSchemas(content openapi3.Content, mimeTypes []string, processedSchemaRefs map[string]bool) error {
+	for _, mimeType := range mimeTypes {
+		if mediaType := content.Get(mimeType); mediaType != nil {
+			if mediaType.Schema != nil {
+				if err := extractSchemaReferences(mediaType.Schema, processedSchemaRefs); err != nil {
+					return err
 				}
 			}
 		}
 	}
-
 	return nil
 }
 
@@ -352,157 +443,195 @@ func resolveSchemaRefsRecursively(
 		return nil
 	}
 
-	// Process array items
-	if schema.Value.Items != nil {
-		if schema.Value.Items.Ref != "" {
-			refName, err := validateRef(schema.Value.Items.Ref)
+	// Process schema components
+	if err := processSchemaItems(doc, filtered, schema, schemaName, processedRefs); err != nil {
+		return err
+	}
+
+	if err := processSchemaProperties(doc, filtered, schema, schemaName, processedRefs); err != nil {
+		return err
+	}
+
+	if err := processCompositionSchemas(doc, filtered, schema, schemaName, processedRefs); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// processSchemaItems processes array items in a schema
+func processSchemaItems(doc *openapi3.T, filtered *openapi3.T, schema *openapi3.SchemaRef, schemaName string, processedRefs map[string]bool) error {
+	if schema.Value.Items == nil {
+		return nil
+	}
+
+	if schema.Value.Items.Ref != "" {
+		refName, err := validateRef(schema.Value.Items.Ref)
+		if err != nil {
+			return fmt.Errorf("%w (in schema %s.items)", err, schemaName)
+		}
+
+		if err := resolveSchemaRefsRecursively(doc, filtered, refName, processedRefs, schemaName+".items"); err != nil {
+			return err
+		}
+	}
+
+	// Also process the items if it has a Value
+	if schema.Value.Items.Value != nil && schema.Value.Items.Value.Properties != nil {
+		return processItemProperties(doc, filtered, schema, schemaName, processedRefs)
+	}
+
+	return nil
+}
+
+// processItemProperties processes properties within array items
+func processItemProperties(doc *openapi3.T, filtered *openapi3.T, schema *openapi3.SchemaRef, schemaName string, processedRefs map[string]bool) error {
+	for propName, propSchema := range schema.Value.Items.Value.Properties {
+		if propSchema.Ref != "" {
+			refName, err := validateRef(propSchema.Ref)
 			if err != nil {
-				return fmt.Errorf("%w (in schema %s.items)", err, schemaName)
+				return fmt.Errorf("%w (in schema %s.items.properties.%s)", err, schemaName, propName)
 			}
 
-			if err := resolveSchemaRefsRecursively(doc, filtered, refName, processedRefs, schemaName+".items"); err != nil {
+			if err := resolveSchemaRefsRecursively(doc, filtered, refName, processedRefs,
+				fmt.Sprintf("%s.items.properties.%s", schemaName, propName)); err != nil {
 				return err
 			}
 		}
 
-		// Also process the items if it has a Value
-		if schema.Value.Items.Value != nil {
-			// Process array item properties
-			if schema.Value.Items.Value.Properties != nil {
-				for propName, propSchema := range schema.Value.Items.Value.Properties {
-					if propSchema.Ref != "" {
-						refName, err := validateRef(propSchema.Ref)
-						if err != nil {
-							return fmt.Errorf("%w (in schema %s.items.properties.%s)", err, schemaName, propName)
-						}
+		// Process nested items within item properties
+		if propSchema.Value != nil && propSchema.Value.Items != nil && propSchema.Value.Items.Ref != "" {
+			refName, err := validateRef(propSchema.Value.Items.Ref)
+			if err != nil {
+				return fmt.Errorf("%w (in schema %s.items.properties.%s.items)",
+					err, schemaName, propName)
+			}
 
-						if err := resolveSchemaRefsRecursively(doc, filtered, refName, processedRefs,
-							fmt.Sprintf("%s.items.properties.%s", schemaName, propName)); err != nil {
-							return err
-						}
-					}
-
-					// Process nested items within item properties
-					if propSchema.Value != nil && propSchema.Value.Items != nil && propSchema.Value.Items.Ref != "" {
-						refName, err := validateRef(propSchema.Value.Items.Ref)
-						if err != nil {
-							return fmt.Errorf("%w (in schema %s.items.properties.%s.items)",
-								err, schemaName, propName)
-						}
-
-						if err := resolveSchemaRefsRecursively(doc, filtered, refName, processedRefs,
-							fmt.Sprintf("%s.items.properties.%s.items", schemaName, propName)); err != nil {
-							return err
-						}
-					}
-				}
+			if err := resolveSchemaRefsRecursively(doc, filtered, refName, processedRefs,
+				fmt.Sprintf("%s.items.properties.%s.items", schemaName, propName)); err != nil {
+				return err
 			}
 		}
 	}
+	return nil
+}
 
-	// Process properties for object schemas
-	if schema.Value.Properties != nil {
-		for propName, propSchema := range schema.Value.Properties {
-			if propSchema.Ref != "" {
-				refName, err := validateRef(propSchema.Ref)
+// processSchemaProperties processes object properties in a schema
+func processSchemaProperties(doc *openapi3.T, filtered *openapi3.T, schema *openapi3.SchemaRef, schemaName string, processedRefs map[string]bool) error {
+	if schema.Value.Properties == nil {
+		return nil
+	}
+
+	for propName, propSchema := range schema.Value.Properties {
+		if err := processPropertyRef(doc, filtered, propSchema, schemaName, propName, processedRefs); err != nil {
+			return err
+		}
+
+		if err := processNestedPropertyObjects(doc, filtered, propSchema, schemaName, propName, processedRefs); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// processPropertyRef processes a property reference
+func processPropertyRef(doc *openapi3.T, filtered *openapi3.T, propSchema *openapi3.SchemaRef, schemaName, propName string, processedRefs map[string]bool) error {
+	if propSchema.Ref != "" {
+		refName, err := validateRef(propSchema.Ref)
+		if err != nil {
+			return fmt.Errorf("%w (in schema %s.properties.%s)", err, schemaName, propName)
+		}
+
+		if err := resolveSchemaRefsRecursively(doc, filtered, refName, processedRefs, schemaName+".properties."+propName); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// processNestedPropertyObjects processes nested objects within properties
+func processNestedPropertyObjects(doc *openapi3.T, filtered *openapi3.T, propSchema *openapi3.SchemaRef, schemaName, propName string, processedRefs map[string]bool) error {
+	if propSchema.Value == nil {
+		return nil
+	}
+
+	// Handle arrays of objects in properties
+	if propSchema.Value.Items != nil && propSchema.Value.Items.Ref != "" {
+		refName, err := validateRef(propSchema.Value.Items.Ref)
+		if err != nil {
+			return fmt.Errorf("%w (in schema %s.properties.%s.items)", err, schemaName, propName)
+		}
+
+		if err := resolveSchemaRefsRecursively(doc, filtered, refName, processedRefs,
+			fmt.Sprintf("%s.properties.%s.items", schemaName, propName)); err != nil {
+			return err
+		}
+	}
+
+	// Handle nested object properties
+	if propSchema.Value.Properties != nil {
+		return processNestedProperties(doc, filtered, propSchema, schemaName, propName, processedRefs)
+	}
+
+	return nil
+}
+
+// processNestedProperties processes deeply nested properties
+func processNestedProperties(doc *openapi3.T, filtered *openapi3.T, propSchema *openapi3.SchemaRef, schemaName, propName string, processedRefs map[string]bool) error {
+	for nestedPropName, nestedProp := range propSchema.Value.Properties {
+		if nestedProp.Ref != "" {
+			refName, err := validateRef(nestedProp.Ref)
+			if err != nil {
+				return fmt.Errorf("%w (in schema %s.properties.%s.%s)",
+					err, schemaName, propName, nestedPropName)
+			}
+
+			if err := resolveSchemaRefsRecursively(doc, filtered, refName, processedRefs,
+				fmt.Sprintf("%s.properties.%s.%s", schemaName, propName, nestedPropName)); err != nil {
+				return err
+			}
+		}
+
+		// Process even deeper nested items if they exist
+		if nestedProp.Value != nil && nestedProp.Value.Items != nil && nestedProp.Value.Items.Ref != "" {
+			refName, err := validateRef(nestedProp.Value.Items.Ref)
+			if err != nil {
+				return fmt.Errorf("%w (in schema %s.properties.%s.%s.items)",
+					err, schemaName, propName, nestedPropName)
+			}
+
+			if err := resolveSchemaRefsRecursively(doc, filtered, refName, processedRefs,
+				fmt.Sprintf("%s.properties.%s.%s.items", schemaName, propName, nestedPropName)); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+// processCompositionSchemas processes allOf, oneOf, anyOf schemas
+func processCompositionSchemas(doc *openapi3.T, filtered *openapi3.T, schema *openapi3.SchemaRef, schemaName string, processedRefs map[string]bool) error {
+	compositionTypes := []struct {
+		schemas []*openapi3.SchemaRef
+		name    string
+	}{
+		{schema.Value.AllOf, "allOf"},
+		{schema.Value.OneOf, "oneOf"},
+		{schema.Value.AnyOf, "anyOf"},
+	}
+
+	for _, compType := range compositionTypes {
+		for i, compositionSchema := range compType.schemas {
+			if compositionSchema.Ref != "" {
+				refName, err := validateRef(compositionSchema.Ref)
 				if err != nil {
-					return fmt.Errorf("%w (in schema %s.properties.%s)", err, schemaName, propName)
+					return fmt.Errorf("%w (in schema %s.%s[%d])", err, schemaName, compType.name, i)
 				}
 
-				if err := resolveSchemaRefsRecursively(doc, filtered, refName, processedRefs, schemaName+".properties."+propName); err != nil {
+				if err := resolveSchemaRefsRecursively(doc, filtered, refName, processedRefs,
+					fmt.Sprintf("%s.%s[%d]", schemaName, compType.name, i)); err != nil {
 					return err
 				}
-			}
-
-			// Process nested objects within properties
-			if propSchema.Value != nil {
-				// Handle arrays of objects in properties
-				if propSchema.Value.Items != nil && propSchema.Value.Items.Ref != "" {
-					refName, err := validateRef(propSchema.Value.Items.Ref)
-					if err != nil {
-						return fmt.Errorf("%w (in schema %s.properties.%s.items)", err, schemaName, propName)
-					}
-
-					if err := resolveSchemaRefsRecursively(doc, filtered, refName, processedRefs,
-						fmt.Sprintf("%s.properties.%s.items", schemaName, propName)); err != nil {
-						return err
-					}
-				}
-
-				// Handle nested object properties
-				if propSchema.Value.Properties != nil {
-					for nestedPropName, nestedProp := range propSchema.Value.Properties {
-						if nestedProp.Ref != "" {
-							refName, err := validateRef(nestedProp.Ref)
-							if err != nil {
-								return fmt.Errorf("%w (in schema %s.properties.%s.%s)",
-									err, schemaName, propName, nestedPropName)
-							}
-
-							if err := resolveSchemaRefsRecursively(doc, filtered, refName, processedRefs,
-								fmt.Sprintf("%s.properties.%s.%s", schemaName, propName, nestedPropName)); err != nil {
-								return err
-							}
-						}
-
-						// Process even deeper nested items if they exist
-						if nestedProp.Value != nil && nestedProp.Value.Items != nil && nestedProp.Value.Items.Ref != "" {
-							refName, err := validateRef(nestedProp.Value.Items.Ref)
-							if err != nil {
-								return fmt.Errorf("%w (in schema %s.properties.%s.%s.items)",
-									err, schemaName, propName, nestedPropName)
-							}
-
-							if err := resolveSchemaRefsRecursively(doc, filtered, refName, processedRefs,
-								fmt.Sprintf("%s.properties.%s.%s.items", schemaName, propName, nestedPropName)); err != nil {
-								return err
-							}
-						}
-					}
-				}
-			}
-		}
-	}
-
-	// Process allOf, oneOf, anyOf schemas
-	for i, compositionSchema := range schema.Value.AllOf {
-		if compositionSchema.Ref != "" {
-			refName, err := validateRef(compositionSchema.Ref)
-			if err != nil {
-				return fmt.Errorf("%w (in schema %s.allOf[%d])", err, schemaName, i)
-			}
-
-			if err := resolveSchemaRefsRecursively(doc, filtered, refName, processedRefs,
-				fmt.Sprintf("%s.allOf[%d]", schemaName, i)); err != nil {
-				return err
-			}
-		}
-	}
-
-	for i, compositionSchema := range schema.Value.OneOf {
-		if compositionSchema.Ref != "" {
-			refName, err := validateRef(compositionSchema.Ref)
-			if err != nil {
-				return fmt.Errorf("%w (in schema %s.oneOf[%d])", err, schemaName, i)
-			}
-
-			if err := resolveSchemaRefsRecursively(doc, filtered, refName, processedRefs,
-				fmt.Sprintf("%s.oneOf[%d]", schemaName, i)); err != nil {
-				return err
-			}
-		}
-	}
-
-	for i, compositionSchema := range schema.Value.AnyOf {
-		if compositionSchema.Ref != "" {
-			refName, err := validateRef(compositionSchema.Ref)
-			if err != nil {
-				return fmt.Errorf("%w (in schema %s.anyOf[%d])", err, schemaName, i)
-			}
-
-			if err := resolveSchemaRefsRecursively(doc, filtered, refName, processedRefs,
-				fmt.Sprintf("%s.anyOf[%d]", schemaName, i)); err != nil {
-				return err
 			}
 		}
 	}
@@ -516,9 +645,22 @@ func findAllMimeTypes(doc *openapi3.T) []string {
 		return []string{}
 	}
 
-	mimeTypeSet := make(map[string]struct{})
+	mimeTypeSet := getDefaultMimeTypes()
 
-	// Default MIME types to always include
+	// Search for MIME types in operations
+	for _, pathItem := range doc.Paths.Map() {
+		if pathItem != nil {
+			collectMimeTypesFromPathItem(pathItem, mimeTypeSet)
+		}
+	}
+
+	// Convert set to slice
+	return convertMimeTypeSetToSlice(mimeTypeSet)
+}
+
+// getDefaultMimeTypes returns the default MIME types to always include
+func getDefaultMimeTypes() map[string]struct{} {
+	mimeTypeSet := make(map[string]struct{})
 	defaults := []string{
 		"application/json",
 		"application/x-www-form-urlencoded",
@@ -530,44 +672,45 @@ func findAllMimeTypes(doc *openapi3.T) []string {
 	for _, mt := range defaults {
 		mimeTypeSet[mt] = struct{}{}
 	}
+	return mimeTypeSet
+}
 
-	// Search for MIME types in request bodies
-	for _, pathItem := range doc.Paths.Map() {
-		if pathItem == nil {
-			continue
+// collectMimeTypesFromPathItem collects MIME types from all operations in a path item
+func collectMimeTypesFromPathItem(pathItem *openapi3.PathItem, mimeTypeSet map[string]struct{}) {
+	for _, operation := range pathItem.Operations() {
+		if operation != nil {
+			collectMimeTypesFromOperation(operation, mimeTypeSet)
 		}
+	}
+}
 
-		for _, operation := range pathItem.Operations() {
-			if operation == nil {
-				continue
-			}
+// collectMimeTypesFromOperation collects MIME types from an operation
+func collectMimeTypesFromOperation(operation *openapi3.Operation, mimeTypeSet map[string]struct{}) {
+	// Check request body
+	if operation.RequestBody != nil && operation.RequestBody.Value != nil {
+		for mt := range operation.RequestBody.Value.Content {
+			mimeTypeSet[mt] = struct{}{}
+		}
+	}
 
-			// Check request body
-			if operation.RequestBody != nil && operation.RequestBody.Value != nil {
-				for mt := range operation.RequestBody.Value.Content {
+	// Check responses
+	if operation.Responses != nil {
+		for _, response := range operation.Responses.Map() {
+			if response != nil && response.Value != nil {
+				for mt := range response.Value.Content {
 					mimeTypeSet[mt] = struct{}{}
-				}
-			}
-
-			// Check responses
-			if operation.Responses != nil {
-				for _, response := range operation.Responses.Map() {
-					if response != nil && response.Value != nil {
-						for mt := range response.Value.Content {
-							mimeTypeSet[mt] = struct{}{}
-						}
-					}
 				}
 			}
 		}
 	}
+}
 
-	// Convert set to slice
+// convertMimeTypeSetToSlice converts a MIME type set to a slice
+func convertMimeTypeSetToSlice(mimeTypeSet map[string]struct{}) []string {
 	result := make([]string, 0, len(mimeTypeSet))
 	for mt := range mimeTypeSet {
 		result = append(result, mt)
 	}
-
 	return result
 }
 
@@ -588,38 +731,56 @@ func extractSchemaReferences(schema *openapi3.SchemaRef, processedSchemaRefs map
 
 	// Process schema value
 	if schema.Value != nil {
-		// Array items
-		if schema.Value.Items != nil {
-			if err := extractSchemaReferences(schema.Value.Items, processedSchemaRefs); err != nil {
-				return err
-			}
+		if err := extractSchemaValueReferences(schema.Value, processedSchemaRefs); err != nil {
+			return err
 		}
+	}
 
-		// Object properties
-		for _, propSchema := range schema.Value.Properties {
-			if err := extractSchemaReferences(propSchema, processedSchemaRefs); err != nil {
-				return err
-			}
-		}
+	return nil
+}
 
-		// Composition schemas
-		for _, compositionSchema := range schema.Value.AllOf {
-			if err := extractSchemaReferences(compositionSchema, processedSchemaRefs); err != nil {
-				return err
-			}
+// extractSchemaValueReferences extracts references from a schema value
+func extractSchemaValueReferences(schemaValue *openapi3.Schema, processedSchemaRefs map[string]bool) error {
+	// Array items
+	if schemaValue.Items != nil {
+		if err := extractSchemaReferences(schemaValue.Items, processedSchemaRefs); err != nil {
+			return err
 		}
-		for _, compositionSchema := range schema.Value.OneOf {
-			if err := extractSchemaReferences(compositionSchema, processedSchemaRefs); err != nil {
-				return err
-			}
+	}
+
+	// Object properties
+	for _, propSchema := range schemaValue.Properties {
+		if err := extractSchemaReferences(propSchema, processedSchemaRefs); err != nil {
+			return err
 		}
-		for _, compositionSchema := range schema.Value.AnyOf {
-			if err := extractSchemaReferences(compositionSchema, processedSchemaRefs); err != nil {
-				return err
-			}
+	}
+
+	// Composition schemas
+	if err := extractCompositionSchemaReferences(schemaValue, processedSchemaRefs); err != nil {
+		return err
+	}
+
+	// Not schema
+	if schemaValue.Not != nil {
+		if err := extractSchemaReferences(schemaValue.Not, processedSchemaRefs); err != nil {
+			return err
 		}
-		if schema.Value.Not != nil {
-			if err := extractSchemaReferences(schema.Value.Not, processedSchemaRefs); err != nil {
+	}
+
+	return nil
+}
+
+// extractCompositionSchemaReferences extracts references from composition schemas (allOf, oneOf, anyOf)
+func extractCompositionSchemaReferences(schemaValue *openapi3.Schema, processedSchemaRefs map[string]bool) error {
+	compositionTypes := [][]*openapi3.SchemaRef{
+		schemaValue.AllOf,
+		schemaValue.OneOf,
+		schemaValue.AnyOf,
+	}
+
+	for _, compositionSchemas := range compositionTypes {
+		for _, compositionSchema := range compositionSchemas {
+			if err := extractSchemaReferences(compositionSchema, processedSchemaRefs); err != nil {
 				return err
 			}
 		}

@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/imtanmoy/openax/pkg/openax"
 )
 
@@ -16,15 +17,28 @@ func TestIntegrationFilterPetstore(t *testing.T) {
 
 	client := openax.New()
 	specPath := filepath.Join("testdata", "specs", "petstore.yaml")
+	testCases := createPetstoreTestCases()
 
-	testCases := []struct {
-		name           string
-		options        openax.FilterOptions
-		minPaths       int
-		minSchemas     int
-		requiredPaths  []string
-		requiredSchema []string
-	}{
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			runPetstoreTestCase(t, client, specPath, tc)
+		})
+	}
+}
+
+// PetstoreTestCase represents a test case for petstore filtering
+type PetstoreTestCase struct {
+	name           string
+	options        openax.FilterOptions
+	minPaths       int
+	minSchemas     int
+	requiredPaths  []string
+	requiredSchema []string
+}
+
+// createPetstoreTestCases creates all test cases for petstore filtering
+func createPetstoreTestCases() []PetstoreTestCase {
+	return []PetstoreTestCase{
 		{
 			name: "filter pet operations",
 			options: openax.FilterOptions{
@@ -74,51 +88,68 @@ func TestIntegrationFilterPetstore(t *testing.T) {
 			requiredSchema: []string{"Pet"},
 		},
 	}
+}
 
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			filtered, err := client.LoadAndFilter(specPath, tc.options)
-			if err != nil {
-				t.Fatalf("LoadAndFilter failed: %v", err)
-			}
-
-			// Check minimum expectations
-			if filtered.Paths.Len() < tc.minPaths {
-				t.Errorf("Expected at least %d paths, got %d", tc.minPaths, filtered.Paths.Len())
-			}
-
-			if len(filtered.Components.Schemas) < tc.minSchemas {
-				t.Errorf("Expected at least %d schemas, got %d", tc.minSchemas, len(filtered.Components.Schemas))
-			}
-
-			// Check required paths
-			for _, requiredPath := range tc.requiredPaths {
-				found := false
-				for path := range filtered.Paths.Map() {
-					if path == requiredPath || (len(path) > len(requiredPath) && path[:len(requiredPath)] == requiredPath) {
-						found = true
-						break
-					}
-				}
-				if !found {
-					t.Errorf("Required path %s not found in filtered results", requiredPath)
-				}
-			}
-
-			// Check required schemas
-			for _, requiredSchema := range tc.requiredSchema {
-				if _, exists := filtered.Components.Schemas[requiredSchema]; !exists {
-					t.Errorf("Required schema %s not found in filtered results", requiredSchema)
-				}
-			}
-
-			// Validate the filtered result is still valid OpenAPI
-			err = client.Validate(filtered)
-			if err != nil {
-				t.Errorf("Filtered spec is not valid: %v", err)
-			}
-		})
+// runPetstoreTestCase executes a single petstore test case
+func runPetstoreTestCase(t *testing.T, client *openax.Client, specPath string, tc PetstoreTestCase) {
+	filtered, err := client.LoadAndFilter(specPath, tc.options)
+	if err != nil {
+		t.Fatalf("LoadAndFilter failed: %v", err)
 	}
+
+	validateMinimumExpectations(t, filtered, tc)
+	validateRequiredPaths(t, filtered, tc.requiredPaths)
+	validateRequiredSchemas(t, filtered, tc.requiredSchema)
+	validateFilteredSpec(t, client, filtered)
+}
+
+// validateMinimumExpectations validates minimum paths and schemas
+func validateMinimumExpectations(t *testing.T, filtered *openapi3.T, tc PetstoreTestCase) {
+	if filtered.Paths.Len() < tc.minPaths {
+		t.Errorf("Expected at least %d paths, got %d", tc.minPaths, filtered.Paths.Len())
+	}
+
+	if len(filtered.Components.Schemas) < tc.minSchemas {
+		t.Errorf("Expected at least %d schemas, got %d", tc.minSchemas, len(filtered.Components.Schemas))
+	}
+}
+
+// validateRequiredPaths validates that required paths are present
+func validateRequiredPaths(t *testing.T, filtered *openapi3.T, requiredPaths []string) {
+	for _, requiredPath := range requiredPaths {
+		found := false
+		for path := range filtered.Paths.Map() {
+			if pathMatches(path, requiredPath) {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("Required path %s not found in filtered results", requiredPath)
+		}
+	}
+}
+
+// validateRequiredSchemas validates that required schemas are present
+func validateRequiredSchemas(t *testing.T, filtered *openapi3.T, requiredSchemas []string) {
+	for _, requiredSchema := range requiredSchemas {
+		if _, exists := filtered.Components.Schemas[requiredSchema]; !exists {
+			t.Errorf("Required schema %s not found in filtered results", requiredSchema)
+		}
+	}
+}
+
+// validateFilteredSpec validates that the filtered spec is still valid OpenAPI
+func validateFilteredSpec(t *testing.T, client *openax.Client, filtered *openapi3.T) {
+	err := client.Validate(filtered)
+	if err != nil {
+		t.Errorf("Filtered spec is not valid: %v", err)
+	}
+}
+
+// pathMatches checks if a path matches a required path (exact or prefix match)
+func pathMatches(path, requiredPath string) bool {
+	return path == requiredPath || (len(path) > len(requiredPath) && path[:len(requiredPath)] == requiredPath)
 }
 
 // TestIntegrationEndToEnd tests the complete workflow

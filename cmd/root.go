@@ -112,7 +112,7 @@ func writeOutput(cmd *cli.Command, doc *openapi3.T) error {
 	if outputFile == "" {
 		fmt.Print(string(data))
 	} else {
-		err = os.WriteFile(outputFile, data, 0644)
+		err = os.WriteFile(outputFile, data, 0600)
 	}
 
 	return err
