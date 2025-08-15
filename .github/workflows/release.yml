@@ -62,6 +62,15 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Debug package contents before publish
+        run: |
+          echo "=== Package.json files array ==="
+          cat package.json | grep -A5 '"files"'
+          echo "=== npm pack dry run ==="
+          npm pack --dry-run
+          echo "=== Directory contents ==="
+          ls -la bin/
+
       - name: Publish to npm
         run: npm publish
         env:
