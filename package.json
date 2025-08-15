@@ -1,6 +1,6 @@
 {
   "name": "openax-cli",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "A powerful OpenAPI 3.x specification filtering tool",
   "main": "bin/openax",
   "bin": {
