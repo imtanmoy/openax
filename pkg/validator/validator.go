@@ -1,4 +1,27 @@
 // Package validator provides OpenAPI specification validation utilities.
+//
+// This package offers comprehensive validation of OpenAPI 3.x specifications,
+// checking for structural correctness, required fields, and schema compliance.
+// It's designed to be used both standalone and as part of larger processing pipelines.
+//
+// # Basic Usage
+//
+//	validator := validator.New()
+//	err := validator.ValidateFile("api.yaml")
+//	if err != nil {
+//		fmt.Printf("Validation failed: %v\n", err)
+//	}
+//
+// # Advanced Usage
+//
+//	validator := validator.NewWithContext(ctx)
+//	doc := loadOpenAPIDoc()
+//	if err := validator.Validate(doc); err != nil {
+//		// Handle validation errors
+//	}
+//
+// The validator provides detailed error messages to help identify and fix
+// specification issues quickly.
 package validator
 
 import (

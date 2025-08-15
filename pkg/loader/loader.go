@@ -1,4 +1,24 @@
 // Package loader provides utilities for loading OpenAPI specifications from various sources.
+//
+// This package wraps the OpenAPI loader with additional functionality for handling
+// different input sources including files, URLs, and raw data. It provides a
+// consistent interface for loading specifications regardless of the source.
+//
+// # Basic Usage
+//
+//	loader := loader.New()
+//	doc, err := loader.LoadFromFile("api.yaml")
+//
+// # Custom Options
+//
+//	loader := loader.NewWithOptions(loader.Options{
+//		AllowExternalRefs: true,
+//		Context:           ctx,
+//	})
+//	doc, err := loader.LoadFromURL("https://api.example.com/spec.yaml")
+//
+// The loader handles automatic format detection (YAML/JSON) and provides
+// comprehensive error reporting for loading failures.
 package loader
 
 import (
