@@ -2,12 +2,11 @@
   "name": "openax-cli",
   "version": "1.0.2",
   "description": "A powerful OpenAPI 3.x specification filtering tool",
-  "main": "bin/openax",
+  "main": "bin/openax.js",
   "bin": {
-    "openax": "bin/openax"
+    "openax": "bin/openax.js"
   },
   "scripts": {
-    "postinstall": "node scripts/install.js",
     "test": "node scripts/test.js"
   },
   "keywords": [
@@ -44,8 +43,7 @@
     "arm64"
   ],
   "files": [
-    "bin/",
-    "scripts/",
+    "bin/openax.js",
     "README.md",
     "LICENSE"
   ],

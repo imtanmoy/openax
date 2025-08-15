@@ -102,6 +102,23 @@ function downloadFile(url, followRedirects = true) {
           console.log('✅ OpenAx installed successfully!');
           console.log(`Binary location: ${binPath}`);
           
+          // Create symlink for global installations
+          try {
+            const npmBinPath = execSync('npm bin -g', { encoding: 'utf8' }).trim();
+            const symlinkPath = path.join(npmBinPath, 'openax');
+            
+            // Remove existing symlink if it exists
+            if (fs.existsSync(symlinkPath)) {
+              fs.unlinkSync(symlinkPath);
+            }
+            
+            // Create new symlink
+            fs.symlinkSync(binPath, symlinkPath);
+            console.log(`✅ Created symlink: ${symlinkPath}`);
+          } catch (err) {
+            console.log('⚠️  Could not create global symlink, but binary is available at:', binPath);
+          }
+          
           // Test the binary
           try {
             const output = execSync(`"${binPath}" --version`, { encoding: 'utf8' });
