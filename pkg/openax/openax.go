@@ -7,7 +7,7 @@
 // # Basic Usage
 //
 //	client := openax.New()
-//	
+//
 //	// Load and filter by tags
 //	filtered, err := client.LoadAndFilter("api.yaml", openax.FilterOptions{
 //		Tags: []string{"users", "orders"},
@@ -15,7 +15,7 @@
 //	if err != nil {
 //		log.Fatal(err)
 //	}
-//	
+//
 //	fmt.Printf("Filtered spec has %d paths\n", len(filtered.Paths))
 //
 // # Advanced Usage
@@ -25,12 +25,12 @@
 //		AllowExternalRefs: true,
 //		Context:           ctx,
 //	})
-//	
+//
 //	// Load from different sources
 //	doc, err := client.LoadFromFile("api.yaml")
 //	doc, err = client.LoadFromURL("https://api.example.com/openapi.yaml")
 //	doc, err = client.LoadFromData(yamlBytes)
-//	
+//
 //	// Apply filtering with multiple criteria
 //	filtered, err := client.Filter(doc, openax.FilterOptions{
 //		Paths:      []string{"/users", "/orders"},
@@ -43,7 +43,7 @@
 //
 //	// Validate only (no filtering)
 //	err := client.ValidateOnly("api.yaml")
-//	
+//
 //	// Validate loaded document
 //	err = client.Validate(doc)
 //
@@ -90,7 +90,7 @@ type FilterOptions struct {
 	// If empty, all tags are included.
 	Tags []string
 
-	// PruneComponents removes unused components (schemas, parameters, etc.) 
+	// PruneComponents removes unused components (schemas, parameters, etc.)
 	// from the filtered specification to reduce size.
 	// This is useful when creating minimal API specifications.
 	// This helps reduce specification size and improves readability
@@ -271,7 +271,7 @@ func (c *Client) Filter(doc *openapi3.T, opts FilterOptions) (*openapi3.T, error
 //	filtered, err := client.LoadAndFilter("api.yaml", openax.FilterOptions{
 //		Tags: []string{"users"},
 //	})
-//	
+//
 //	// Load and filter from URL
 //	filtered, err := client.LoadAndFilter("https://api.example.com/spec.yaml", opts)
 func (c *Client) LoadAndFilter(source string, opts FilterOptions) (*openapi3.T, error) {
@@ -306,7 +306,7 @@ func (c *Client) LoadAndFilter(source string, opts FilterOptions) (*openapi3.T, 
 //	if err := client.ValidateOnly("api.yaml"); err != nil {
 //		log.Printf("Invalid spec: %v", err)
 //	}
-//	
+//
 //	// Validate a remote spec
 //	err := client.ValidateOnly("https://api.example.com/openapi.yaml")
 func (c *Client) ValidateOnly(source string) error {
