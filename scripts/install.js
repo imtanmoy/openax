@@ -51,62 +51,78 @@ if (!fs.existsSync(binDir)) {
   fs.mkdirSync(binDir, { recursive: true });
 }
 
-// Download file
-const file = fs.createWriteStream(tempFile);
-https.get(downloadUrl, (response) => {
-  if (response.statusCode !== 200) {
-    console.error(`Failed to download: HTTP ${response.statusCode}`);
-    console.error('This usually means the release for your platform is not available yet.');
-    console.error('Please check: https://github.com/imtanmoy/openax/releases');
-    process.exit(1);
-  }
-
-  response.pipe(file);
+// Download file with redirect handling
+function downloadFile(url, followRedirects = true) {
+  const file = fs.createWriteStream(tempFile);
   
-  file.on('finish', () => {
-    file.close(() => {
-      try {
-        // Extract the binary
-        if (platform === 'win32') {
-          // For Windows, we need to unzip
-          execSync(`cd "${path.dirname(tempFile)}" && tar -xf "${filename}"`, { stdio: 'inherit' });
-          // Move binary to bin directory
-          fs.renameSync(path.join(path.dirname(tempFile), 'openax.exe'), binPath);
-        } else {
-          // For Unix systems, extract tar.gz
-          execSync(`cd "${path.dirname(tempFile)}" && tar -xzf "${filename}"`, { stdio: 'inherit' });
-          // Move binary to bin directory
-          fs.renameSync(path.join(path.dirname(tempFile), 'openax'), binPath);
-        }
-
-        // Make binary executable (Unix systems)
-        if (platform !== 'win32') {
-          fs.chmodSync(binPath, '755');
-        }
-
-        // Clean up temp file
+  https.get(url, (response) => {
+    // Handle redirects (GitHub releases redirect to CDN)
+    if (response.statusCode === 302 || response.statusCode === 301) {
+      if (followRedirects && response.headers.location) {
+        file.close();
         fs.unlinkSync(tempFile);
-
-        console.log('✅ OpenAx installed successfully!');
-        console.log(`Binary location: ${binPath}`);
-        
-        // Test the binary
-        try {
-          const output = execSync(`"${binPath}" --version`, { encoding: 'utf8' });
-          console.log(`✅ ${output.trim()}`);
-        } catch (err) {
-          console.log('⚠️  Binary installed but version check failed');
-        }
-
-      } catch (err) {
-        console.error('❌ Failed to extract binary:', err.message);
-        process.exit(1);
+        downloadFile(response.headers.location, false);
+        return;
       }
+    }
+    
+    if (response.statusCode !== 200) {
+      console.error(`Failed to download: HTTP ${response.statusCode}`);
+      console.error('This usually means the release for your platform is not available yet.');
+      console.error('Please check: https://github.com/imtanmoy/openax/releases');
+      process.exit(1);
+    }
+
+    response.pipe(file);
+    
+    file.on('finish', () => {
+      file.close(() => {
+        try {
+          // Extract the binary
+          if (platform === 'win32') {
+            // For Windows, we need to unzip
+            execSync(`cd "${path.dirname(tempFile)}" && tar -xf "${filename}"`, { stdio: 'inherit' });
+            // Move binary to bin directory
+            fs.renameSync(path.join(path.dirname(tempFile), 'openax.exe'), binPath);
+          } else {
+            // For Unix systems, extract tar.gz
+            execSync(`cd "${path.dirname(tempFile)}" && tar -xzf "${filename}"`, { stdio: 'inherit' });
+            // Move binary to bin directory
+            fs.renameSync(path.join(path.dirname(tempFile), 'openax'), binPath);
+          }
+
+          // Make binary executable (Unix systems)
+          if (platform !== 'win32') {
+            fs.chmodSync(binPath, '755');
+          }
+
+          // Clean up temp file
+          fs.unlinkSync(tempFile);
+
+          console.log('✅ OpenAx installed successfully!');
+          console.log(`Binary location: ${binPath}`);
+          
+          // Test the binary
+          try {
+            const output = execSync(`"${binPath}" --version`, { encoding: 'utf8' });
+            console.log(`✅ ${output.trim()}`);
+          } catch (err) {
+            console.log('⚠️  Binary installed but version check failed');
+          }
+
+        } catch (err) {
+          console.error('❌ Failed to extract binary:', err.message);
+          process.exit(1);
+        }
+      });
+    });
+
+    file.on('error', (err) => {
+      console.error('❌ Download failed:', err.message);
+      process.exit(1);
     });
   });
+}
 
-  file.on('error', (err) => {
-    console.error('❌ Download failed:', err.message);
-    process.exit(1);
-  });
-});
+// Start the download
+downloadFile(downloadUrl);
