@@ -36,7 +36,7 @@ Thumbs.db
 # Built binaries
 /openax
 openax.exe
-bin/openax*
+bin/openax
 
 # Keep test data and examples
 !testdata/**/*
