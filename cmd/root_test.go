@@ -180,7 +180,7 @@ func captureStdout(t *testing.T, fn func()) string {
 	r, w, err := os.Pipe()
 	require.NoError(t, err)
 	defer func() {
-		_ = r.Close()
+		assert.NoError(t, r.Close())
 	}()
 	os.Stdout = w
 	defer func() {
@@ -189,7 +189,7 @@ func captureStdout(t *testing.T, fn func()) string {
 
 	func() {
 		defer func() {
-			_ = w.Close()
+			assert.NoError(t, w.Close())
 		}()
 		fn()
 	}()
