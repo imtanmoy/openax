@@ -72,7 +72,7 @@ func TestValidate(t *testing.T) {
 func TestLoadFromURL(t *testing.T) {
 	client := openax.New()
 
-	_, err := client.LoadFromURL("not-a-url")
+	_, err := client.LoadFromURL("http://[invalid")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid URL")
 }
