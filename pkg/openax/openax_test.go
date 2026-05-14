@@ -69,6 +69,39 @@ func TestValidate(t *testing.T) {
 	assert.NoError(t, err, "Validation should succeed for valid spec")
 }
 
+func TestLoadFromURL(t *testing.T) {
+	client := openax.New()
+
+	_, err := client.LoadFromURL("not-a-url")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid URL")
+}
+
+func TestLoadFromData(t *testing.T) {
+	client := openax.New()
+
+	validSpec := []byte(`
+openapi: 3.0.3
+info:
+  title: Test API
+  version: 1.0.0
+paths:
+  /users:
+    get:
+      responses:
+        '200':
+          description: OK
+`)
+
+	doc, err := client.LoadFromData(validSpec)
+	require.NoError(t, err)
+	require.NotNil(t, doc)
+	assert.Equal(t, "Test API", doc.Info.Title)
+
+	_, err = client.LoadFromData([]byte("openapi: [invalid"))
+	require.Error(t, err)
+}
+
 func TestValidateOnly(t *testing.T) {
 	client := openax.New()
 

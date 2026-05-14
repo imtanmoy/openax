@@ -1,7 +1,9 @@
 package cmd_test
 
 import (
+	"bytes"
 	"context"
+	"io"
 	"os"
 	"path/filepath"
 	"testing"
@@ -90,6 +92,21 @@ func TestCLIIntegration(t *testing.T) {
 			expectError: false,
 		},
 		{
+			name:        "dry run with filters",
+			args:        []string{"openax", "-i", specPath, "--tags", "users", "--dry-run"},
+			expectError: false,
+		},
+		{
+			name:        "dry run without filters",
+			args:        []string{"openax", "-i", specPath, "--dry-run"},
+			expectError: false,
+		},
+		{
+			name:        "unsupported output format",
+			args:        []string{"openax", "-i", specPath, "--format", "toml"},
+			expectError: true,
+		},
+		{
 			name:        "missing input file",
 			args:        []string{"openax", "--tags", "users"},
 			expectError: true,
@@ -116,4 +133,62 @@ func TestCLIIntegration(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestCLIOutputFileWrite(t *testing.T) {
+	app := cmd.NewApp()
+	specPath := filepath.Join("..", "testdata", "specs", "simple.yaml")
+	if _, err := os.Stat(specPath); os.IsNotExist(err) {
+		t.Skip("Test spec file not found, skipping output file test")
+	}
+
+	tempDir := t.TempDir()
+	outputPath := filepath.Join(tempDir, "filtered.yaml")
+
+	err := app.Run(context.Background(), []string{"openax", "-i", specPath, "-o", outputPath, "--tags", "users"})
+	require.NoError(t, err)
+
+	content, err := os.ReadFile(outputPath)
+	require.NoError(t, err)
+	assert.NotEmpty(t, content)
+	assert.Contains(t, string(content), "openapi:")
+}
+
+func TestCLIDryRunSummaryOutput(t *testing.T) {
+	app := cmd.NewApp()
+	specPath := filepath.Join("..", "testdata", "specs", "simple.yaml")
+	if _, err := os.Stat(specPath); os.IsNotExist(err) {
+		t.Skip("Test spec file not found, skipping dry run summary test")
+	}
+
+	output := captureStdout(t, func() {
+		err := app.Run(context.Background(), []string{"openax", "-i", specPath, "--dry-run", "--tags", "users"})
+		require.NoError(t, err)
+	})
+
+	assert.Contains(t, output, "Dry Run Mode - Filtering Results Summary")
+	assert.Contains(t, output, "Applied Filters")
+	assert.Contains(t, output, "Tags: [users]")
+	assert.Contains(t, output, "Dry run completed")
+}
+
+func captureStdout(t *testing.T, fn func()) string {
+	t.Helper()
+
+	oldStdout := os.Stdout
+	r, w, err := os.Pipe()
+	require.NoError(t, err)
+	os.Stdout = w
+
+	fn()
+
+	require.NoError(t, w.Close())
+	os.Stdout = oldStdout
+
+	var buf bytes.Buffer
+	_, err = io.Copy(&buf, r)
+	require.NoError(t, err)
+	require.NoError(t, r.Close())
+
+	return buf.String()
 }
