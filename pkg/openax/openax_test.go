@@ -2,6 +2,8 @@ package openax_test
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/imtanmoy/openax/pkg/openax"
@@ -67,6 +69,29 @@ func TestValidate(t *testing.T) {
 
 	err = client.Validate(doc)
 	assert.NoError(t, err, "Validation should succeed for valid spec")
+}
+
+func TestLoadFromURL(t *testing.T) {
+	client := openax.New()
+
+	_, err := client.LoadFromURL("http://[invalid")
+	require.Error(t, err)
+}
+
+func TestLoadFromData(t *testing.T) {
+	client := openax.New()
+
+	validSpecPath := filepath.Join("..", "..", "testdata", "specs", "simple.yaml")
+	validSpec, err := os.ReadFile(validSpecPath)
+	require.NoError(t, err)
+
+	doc, err := client.LoadFromData(validSpec)
+	require.NoError(t, err)
+	require.NotNil(t, doc)
+	assert.Equal(t, "Simple Test API", doc.Info.Title)
+
+	_, err = client.LoadFromData([]byte("openapi: [invalid"))
+	require.Error(t, err)
 }
 
 func TestValidateOnly(t *testing.T) {
