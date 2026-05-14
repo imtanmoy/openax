@@ -179,11 +179,13 @@ func captureStdout(t *testing.T, fn func()) string {
 	r, w, err := os.Pipe()
 	require.NoError(t, err)
 	os.Stdout = w
+	defer func() {
+		os.Stdout = oldStdout
+	}()
 
 	fn()
 
 	require.NoError(t, w.Close())
-	os.Stdout = oldStdout
 
 	var buf bytes.Buffer
 	_, err = io.Copy(&buf, r)
