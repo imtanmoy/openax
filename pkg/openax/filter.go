@@ -8,6 +8,13 @@ import (
 	"github.com/getkin/kin-openapi/openapi3"
 )
 
+const (
+	schemaComponentType    = "schema"
+	invalidRefFormatReason = "invalid format"
+	mimeJSON               = "application/json"
+	mimeXML                = "application/xml"
+)
+
 // createLocation creates a SourceLocation for the given spec path
 func createLocation(specPath string) *SourceLocation {
 	return &SourceLocation{
@@ -438,7 +445,7 @@ func validateRef(ref string, location *SourceLocation) (string, error) {
 	if !strings.HasPrefix(ref, "#/components/") {
 		return "", InvalidReferenceError{
 			Ref:      ref,
-			Reason:   "invalid format",
+			Reason:   invalidRefFormatReason,
 			Location: location,
 		}
 	}
@@ -588,7 +595,7 @@ func resolveSchemaRefsRecursively(
 
 	schema, ok := doc.Components.Schemas[schemaName]
 	if !ok {
-		return &ComponentNotFoundError{Name: schemaName, Type: "schema", Context: parentContext}
+		return &ComponentNotFoundError{Name: schemaName, Type: schemaComponentType, Context: parentContext}
 	}
 
 	// Add to filtered spec
@@ -830,10 +837,10 @@ func findAllMimeTypes(doc *openapi3.T) []string {
 func getDefaultMimeTypes() map[string]struct{} {
 	mimeTypeSet := make(map[string]struct{})
 	defaults := []string{
-		"application/json",
+		mimeJSON,
 		"application/x-www-form-urlencoded",
 		"multipart/form-data",
-		"application/xml",
+		mimeXML,
 		"text/plain",
 	}
 

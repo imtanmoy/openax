@@ -58,6 +58,7 @@ linters:
           - dupl
           - errcheck
           - gocyclo
+          - goconst
           - gosec
           - revive
           - unparam
