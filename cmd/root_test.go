@@ -183,9 +183,12 @@ func captureStdout(t *testing.T, fn func()) string {
 		os.Stdout = oldStdout
 	}()
 
-	fn()
-
-	require.NoError(t, w.Close())
+	func() {
+		defer func() {
+			_ = w.Close()
+		}()
+		fn()
+	}()
 
 	var buf bytes.Buffer
 	_, err = io.Copy(&buf, r)
