@@ -172,7 +172,7 @@ func TestCLIDryRunSummaryOutput(t *testing.T) {
 	assert.Contains(t, output, "Dry run completed")
 }
 
-// captureStdout is not safe to call from parallel tests — it mutates os.Stdout.
+// captureStdout is not safe to call from parallel tests -- it mutates os.Stdout.
 func captureStdout(t *testing.T, fn func()) string {
 	t.Helper()
 

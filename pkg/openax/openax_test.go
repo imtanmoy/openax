@@ -3,6 +3,7 @@ package openax_test
 import (
 	"context"
 	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/imtanmoy/openax/pkg/openax"
@@ -80,7 +81,8 @@ func TestLoadFromURL(t *testing.T) {
 func TestLoadFromData(t *testing.T) {
 	client := openax.New()
 
-	validSpec, err := os.ReadFile("../../testdata/specs/simple.yaml")
+	validSpecPath := filepath.Join("..", "..", "testdata", "specs", "simple.yaml")
+	validSpec, err := os.ReadFile(validSpecPath)
 	require.NoError(t, err)
 
 	doc, err := client.LoadFromData(validSpec)
