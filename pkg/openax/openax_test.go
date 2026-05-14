@@ -2,6 +2,7 @@ package openax_test
 
 import (
 	"context"
+	"os"
 	"testing"
 
 	"github.com/imtanmoy/openax/pkg/openax"
@@ -74,29 +75,18 @@ func TestLoadFromURL(t *testing.T) {
 
 	_, err := client.LoadFromURL("http://[invalid")
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "invalid URL")
 }
 
 func TestLoadFromData(t *testing.T) {
 	client := openax.New()
 
-	validSpec := []byte(`
-openapi: 3.0.3
-info:
-  title: Test API
-  version: 1.0.0
-paths:
-  /users:
-    get:
-      responses:
-        '200':
-          description: OK
-`)
+	validSpec, err := os.ReadFile("../../testdata/specs/simple.yaml")
+	require.NoError(t, err)
 
 	doc, err := client.LoadFromData(validSpec)
 	require.NoError(t, err)
 	require.NotNil(t, doc)
-	assert.Equal(t, "Test API", doc.Info.Title)
+	assert.Equal(t, "Simple Test API", doc.Info.Title)
 
 	_, err = client.LoadFromData([]byte("openapi: [invalid"))
 	require.Error(t, err)

@@ -172,12 +172,16 @@ func TestCLIDryRunSummaryOutput(t *testing.T) {
 	assert.Contains(t, output, "Dry run completed")
 }
 
+// captureStdout is not safe to call from parallel tests — it mutates os.Stdout.
 func captureStdout(t *testing.T, fn func()) string {
 	t.Helper()
 
 	oldStdout := os.Stdout
 	r, w, err := os.Pipe()
 	require.NoError(t, err)
+	defer func() {
+		_ = r.Close()
+	}()
 	os.Stdout = w
 	defer func() {
 		os.Stdout = oldStdout
@@ -193,7 +197,6 @@ func captureStdout(t *testing.T, fn func()) string {
 	var buf bytes.Buffer
 	_, err = io.Copy(&buf, r)
 	require.NoError(t, err)
-	require.NoError(t, r.Close())
 
 	return buf.String()
 }
